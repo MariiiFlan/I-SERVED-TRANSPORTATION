@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>I Served Transportation — Non-Emergency Medical Rides, Riverside County</title>
+<link rel="stylesheet" href="assets/base.css">
+</head>
+<body>
+<div id="hdr"></div>
+
+<main>
+  <section style="border-bottom:1px solid oklch(0.93 0.01 250);background:oklch(0.98 0.01 237);">
+    <div class="split" style="max-width:1180px;margin:0 auto;padding:72px 32px;display:grid;grid-template-columns:1fr 430px;gap:56px;align-items:center;">
+      <div style="display:flex;flex-direction:column;gap:24px;">
+        <div style="display:inline-flex;align-self:flex-start;align-items:center;gap:10px;padding:8px 14px 8px 10px;border-radius:999px;background:#fff;border:1px solid oklch(0.89 0.04 237);">
+          <div style="display:flex;flex-direction:column;gap:2px;">
+            <div style="width:14px;height:4px;background:oklch(0.62 0.115 237);clip-path:polygon(0 0,50% 100%,100% 0,100% 34%,50% 100%,0 34%);"></div>
+            <div style="width:14px;height:4px;background:oklch(0.62 0.115 237);clip-path:polygon(0 0,50% 100%,100% 0,100% 34%,50% 100%,0 34%);"></div>
+          </div>
+          <span style="font:600 12px/1 Barlow,sans-serif;letter-spacing:0.13em;text-transform:uppercase;color:oklch(0.45 0.09 240);">Veteran owned &amp; operated</span>
+        </div>
+        <h1 style="margin:0;max-width:560px;font:700 58px/1.02 'Barlow Condensed',sans-serif;letter-spacing:0.005em;text-transform:uppercase;color:oklch(0.24 0.02 250);text-wrap:balance;">Get a ride to the appointment</h1>
+        <p style="margin:0;max-width:480px;font:400 19px/1.6 Figtree,sans-serif;color:oklch(0.48 0.015 250);text-wrap:pretty;">Non-emergency medical and wheelchair-accessible transportation across Riverside County. See your price estimate before you submit — no card required.</p>
+        <div style="display:flex;flex-wrap:wrap;gap:10px;">
+          <span style="padding:9px 15px;border-radius:999px;background:#fff;border:1px solid oklch(0.91 0.015 250);font:500 14px/1 Figtree,sans-serif;color:oklch(0.42 0.02 250);">Wheelchair vans</span>
+          <span style="padding:9px 15px;border-radius:999px;background:#fff;border:1px solid oklch(0.91 0.015 250);font:500 14px/1 Figtree,sans-serif;color:oklch(0.42 0.02 250);">Same-day possible</span>
+          <span style="padding:9px 15px;border-radius:999px;background:#fff;border:1px solid oklch(0.91 0.015 250);font:500 14px/1 Figtree,sans-serif;color:oklch(0.42 0.02 250);">Facility billing</span>
+          <span style="padding:9px 15px;border-radius:999px;background:#fff;border:1px solid oklch(0.91 0.015 250);font:500 14px/1 Figtree,sans-serif;color:oklch(0.42 0.02 250);">Licensed &amp; insured</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:20px;padding-top:8px;flex-wrap:wrap;">
+          <a id="heroTel" href="#" style="font:700 30px/1 'Barlow Condensed',sans-serif;letter-spacing:0.01em;color:oklch(0.50 0.115 238);"></a>
+          <span style="font:500 14px/1.5 Figtree,sans-serif;color:oklch(0.52 0.015 250);">Dispatch, Mon–Sat 5am–9pm.<br>Rather talk to a person? Call us.</span>
+        </div>
+      </div>
+
+      <div style="background:#fff;border:1px solid oklch(0.89 0.03 237);border-radius:18px;padding:26px;display:flex;flex-direction:column;gap:15px;box-shadow:0 12px 32px -18px oklch(0.45 0.06 243 / 0.35);">
+        <div style="display:flex;flex-direction:column;gap:4px;">
+          <span style="font:700 13px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.45 0.02 250);">Start a request</span>
+          <span style="font:400 13px/1.45 Figtree,sans-serif;color:oklch(0.55 0.015 250);">Takes about two minutes.</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <label style="font:600 12px/1 Figtree,sans-serif;color:oklch(0.44 0.015 250);">Pickup address</label>
+          <input id="qPickup" placeholder="Street, city" class="inp" style="padding:13px 14px;font-size:15px;">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <label style="font:600 12px/1 Figtree,sans-serif;color:oklch(0.44 0.015 250);">Destination</label>
+          <input id="qDropoff" placeholder="Clinic, hospital, or facility" class="inp" style="padding:13px 14px;font-size:15px;">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <label style="font:600 12px/1 Figtree,sans-serif;color:oklch(0.44 0.015 250);">Date</label>
+            <input id="qDate" type="date" class="inp" style="padding:13px 14px;font-size:15px;">
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <label style="font:600 12px/1 Figtree,sans-serif;color:oklch(0.44 0.015 250);">Appointment</label>
+            <input id="qTime" type="time" value="10:00" class="inp" style="padding:13px 14px;font-size:15px;">
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="selbox on" id="qOne" style="padding:12px 14px;"><span style="font:600 14px/1.2 Figtree,sans-serif;color:oklch(0.32 0.02 250);">One way</span><div class="ring" style="border-radius:10px;"></div></div>
+          <div class="selbox" id="qRound" style="padding:12px 14px;"><span style="font:600 14px/1.2 Figtree,sans-serif;color:oklch(0.32 0.02 250);">Round trip</span><div class="ring" style="border-radius:10px;"></div></div>
+        </div>
+        <button class="btn" id="qGo" style="margin-top:2px;">See my estimate</button>
+        <span style="font:400 12px/1.5 Figtree,sans-serif;color:oklch(0.58 0.015 250);">Nothing is charged. A dispatcher confirms your pickup window within two hours.</span>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="ftr"></div>
+
+<script src="assets/config.js"></script>
+<script src="assets/app.js"></script>
+<script>
+ISV.root = "";
+document.getElementById('hdr').innerHTML = ISV.header("");
+document.getElementById('ftr').innerHTML = ISV.footer("");
+var tel = document.getElementById('heroTel');
+tel.textContent = CONFIG.PHONE_DISPLAY; tel.href = 'tel:' + CONFIG.PHONE_TEL;
+
+var qTrip = "oneway";
+document.getElementById('qOne').onclick = function(){ qTrip="oneway"; this.classList.add('on'); document.getElementById('qRound').classList.remove('on'); };
+document.getElementById('qRound').onclick = function(){ qTrip="round"; this.classList.add('on'); document.getElementById('qOne').classList.remove('on'); };
+document.getElementById('qGo').onclick = function(){
+  localStorage.setItem('isv_draft', JSON.stringify({
+    pickup: document.getElementById('qPickup').value,
+    dropoff: document.getElementById('qDropoff').value,
+    date: document.getElementById('qDate').value,
+    time: document.getElementById('qTime').value || "10:00",
+    tripType: qTrip
+  }));
+  location.href = 'book/';
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,49 @@
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@500;600;700&family=Figtree:wght@400;500;600;700;800&display=swap');
+
+* { box-sizing: border-box; }
+body { margin: 0; background: #fff; -webkit-font-smoothing: antialiased; font-family: Figtree, sans-serif; color: oklch(0.28 0.02 250); }
+a { color: oklch(0.55 0.115 238); text-decoration: none; }
+a:hover { color: oklch(0.44 0.10 240); }
+input, select, textarea { font-family: Figtree, sans-serif; }
+input[type="range"] { accent-color: oklch(0.62 0.115 237); }
+::placeholder { color: oklch(0.70 0.012 250); }
+button { font-family: Figtree, sans-serif; }
+
+.inp { padding: 14px 15px; border: 1px solid oklch(0.90 0.015 250); border-radius: 10px; font-size: 16px; color: oklch(0.28 0.02 250); outline: none; width: 100%; background: #fff; }
+.inp:focus { border-color: oklch(0.62 0.115 237); }
+.btn { border: 0; cursor: pointer; padding: 16px; border-radius: 10px; background: oklch(0.62 0.115 237); color: #fff; font: 600 16px/1 Figtree, sans-serif; }
+.btn:hover { background: oklch(0.55 0.115 238); }
+.btn2 { border: 1px solid oklch(0.88 0.02 250); background: #fff; cursor: pointer; padding: 15px 24px; border-radius: 10px; font: 600 16px/1 Figtree, sans-serif; color: oklch(0.32 0.02 250); }
+.btn2:hover { border-color: oklch(0.72 0.06 237); color: oklch(0.50 0.115 238); }
+.lbl { font: 600 13px/1 Figtree, sans-serif; color: oklch(0.42 0.015 250); }
+.kicker { font: 600 12px/1 Barlow, sans-serif; letter-spacing: 0.16em; text-transform: uppercase; color: oklch(0.62 0.11 237); }
+.h-cond { font-family: 'Barlow Condensed', sans-serif; text-transform: uppercase; }
+.card { border: 1px solid oklch(0.92 0.012 250); border-radius: 16px; padding: 26px; display: flex; flex-direction: column; gap: 20px; background: #fff; }
+.selbox { position: relative; cursor: pointer; padding: 18px; border: 1px solid oklch(0.90 0.015 250); border-radius: 12px; display: flex; flex-direction: column; gap: 5px; background: #fff; }
+.selbox:hover { border-color: oklch(0.72 0.06 237); }
+.selbox .ring { display: none; position: absolute; inset: 0; border-radius: 12px; box-shadow: inset 0 0 0 2px oklch(0.62 0.115 237); background: oklch(0.62 0.115 237 / 0.05); pointer-events: none; }
+.selbox.on .ring { display: block; }
+.err { font: 500 14px/1.5 Figtree, sans-serif; color: oklch(0.50 0.15 25); }
+
+/* console layout */
+.console { min-height: 100vh; background: oklch(0.975 0.006 250); display: grid; grid-template-columns: 248px 1fr; }
+.console main { padding: 28px 30px 60px; display: flex; flex-direction: column; gap: 20px; }
+.statcard { background: #fff; border: 1px solid oklch(0.93 0.01 250); border-radius: 13px; padding: 18px; display: flex; flex-direction: column; gap: 6px; }
+.statcard .k { font: 600 11px/1 Barlow, sans-serif; letter-spacing: 0.14em; text-transform: uppercase; color: oklch(0.58 0.015 250); }
+.statcard .v { font: 700 30px/1 'Barlow Condensed', sans-serif; }
+.statcard .s { font: 500 12px/1.35 Figtree, sans-serif; color: oklch(0.55 0.015 250); }
+.chip { cursor: pointer; padding: 9px 15px; border-radius: 999px; border: 1px solid oklch(0.90 0.015 250); background: #fff; font: 600 13px/1 Figtree, sans-serif; color: oklch(0.45 0.015 250); }
+.chip.on { background: oklch(0.32 0.03 248); border-color: oklch(0.32 0.03 248); color: #fff; }
+.tbl { width: 100%; border-collapse: collapse; background: #fff; }
+.tbl th { text-align: left; padding: 12px 14px; font: 600 11px/1 Barlow, sans-serif; letter-spacing: 0.13em; text-transform: uppercase; color: oklch(0.55 0.015 250); border-bottom: 1px solid oklch(0.92 0.012 250); }
+.tbl td { padding: 14px; border-bottom: 1px solid oklch(0.95 0.008 250); font: 400 14px/1.45 Figtree, sans-serif; vertical-align: top; }
+.tbl tr.click { cursor: pointer; }
+.tbl tr.click:hover td { background: oklch(0.98 0.008 237); }
+
+@media (max-width: 900px) {
+  .console { grid-template-columns: 1fr; }
+  .console aside { min-height: 0 !important; }
+  .grid2, .grid3, .grid4 { grid-template-columns: 1fr !important; }
+  .booking-grid { grid-template-columns: 1fr !important; }
+  .split { grid-template-columns: 1fr !important; }
+}

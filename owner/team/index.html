@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Team — I Served Dispatch</title>
+<link rel="stylesheet" href="../../assets/base.css">
+<style>body{background:oklch(0.975 0.006 250);}</style>
+</head>
+<body>
+<div class="console">
+  <div id="side"></div>
+  <main>
+    <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap;">
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <span class="kicker" style="letter-spacing:0.16em;font-size:11px;">Accounts &amp; access</span>
+        <h2 style="margin:0;font:700 34px/1.05 'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:0.01em;">Team</h2>
+      </div>
+      <button class="btn" id="toggleForm" style="padding:13px 20px;font-size:15px;">Add a driver</button>
+    </div>
+
+    <!-- add / promote form -->
+    <div id="addForm" style="display:none;background:#fff;border:1px solid oklch(0.89 0.03 237);border-radius:14px;padding:24px;flex-direction:column;gap:18px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <span style="font:700 15px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.45 0.02 250);">Give an account access</span>
+        <a href="#" id="closeForm" style="font:600 13px/1 Figtree,sans-serif;">Close form</a>
+      </div>
+      <p style="margin:0;font:400 14px/1.6 Figtree,sans-serif;color:oklch(0.52 0.015 250);">Type any email. If they already made an account on the site, their access changes instantly. If they haven't yet, the role is waiting for them the moment they create their account with this email.</p>
+      <div class="grid3" style="display:grid;grid-template-columns:1.2fr 0.6fr 1fr;gap:14px;">
+        <div style="display:flex;flex-direction:column;gap:7px;">
+          <label class="lbl">Email</label>
+          <input id="fEmail" type="email" class="inp" placeholder="driver@email.com">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:7px;">
+          <label class="lbl">Role</label>
+          <select id="fRole" class="inp"><option value="driver">Driver (worker)</option><option value="owner">Owner</option></select>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:7px;">
+          <label class="lbl">Vehicle (drivers)</label>
+          <select id="fVehicle" class="inp"><option>Sedan</option><option>SUV</option><option>Wheelchair van</option></select>
+        </div>
+      </div>
+      <div class="grid2" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div style="display:flex;flex-direction:column;gap:7px;">
+          <label class="lbl">Phone (optional)</label>
+          <input id="fPhone" class="inp" placeholder="(000) 000-0000">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:7px;">
+          <label class="lbl">Credential expiry (optional)</label>
+          <input id="fCred" class="inp" placeholder="CPR / MM-YYYY">
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;">
+        <button class="btn" id="saveMember" style="padding:14px 22px;font-size:15px;">Save</button>
+        <span id="fErr" class="err"></span>
+        <span id="fOk" style="font:500 14px/1 Figtree,sans-serif;color:oklch(0.45 0.10 160);"></span>
+      </div>
+    </div>
+
+    <!-- team table -->
+    <div style="background:#fff;border:1px solid oklch(0.92 0.012 250);border-radius:14px;overflow:auto;">
+      <table class="tbl" style="min-width:820px;">
+        <thead><tr><th>Person</th><th>Role</th><th>Credentials</th><th>This week</th><th>Manage</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+
+    <div class="card" style="gap:10px;">
+      <span style="font:700 14px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.45 0.02 250);">All client accounts</span>
+      <span style="font:400 14px/1.6 Figtree,sans-serif;color:oklch(0.52 0.015 250);">Everyone who has created an account. Promote any of them with the form above — just use their email.</span>
+      <div id="clientRows" style="display:flex;flex-direction:column;"></div>
+    </div>
+  </main>
+</div>
+
+<script src="../../assets/config.js"></script>
+<script src="../../assets/app.js"></script>
+<script>
+ISV.root = "../../";
+var me = ISV.auth.require("owner", "/owner/team/");
+if (me){
+document.getElementById('side').innerHTML = ISV.sidebar("../../", "team", "Dispatch console", [
+  { id:"dash", label:"Dashboard", href:"../dashboard/" },
+  { id:"team", label:"Team", href:"../team/" },
+  { id:"rep",  label:"Reports", href:"../reports/" }
+]);
+
+var form = document.getElementById('addForm');
+document.getElementById('toggleForm').onclick = function(){ form.style.display = form.style.display === "none" ? "flex" : "none"; };
+document.getElementById('closeForm').onclick = function(e){ e.preventDefault(); form.style.display = "none"; };
+
+function weekCount(email){
+  function iso(d){ return d.toISOString().slice(0,10); }
+  var d = new Date(); var day = (d.getDay()+6)%7;
+  var mon = new Date(d); mon.setDate(d.getDate()-day);
+  var sun = new Date(mon); sun.setDate(mon.getDate()+6);
+  return ISV.book.all().filter(function(b){ return b.driverEmail === email && b.date >= iso(mon) && b.date <= iso(sun) && b.status !== "Cancelled"; }).length;
+}
+
+document.getElementById('saveMember').onclick = function(){
+  var err = document.getElementById('fErr'), ok = document.getElementById('fOk');
+  err.textContent = ""; ok.textContent = "";
+  var email = document.getElementById('fEmail').value.trim().toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ err.textContent = "Enter a valid email."; return; }
+  var role = document.getElementById('fRole').value;
+  ISV.auth.setRole(email, role);
+  if (role === "driver"){
+    ISV.auth.saveProfile(email, {
+      vehicle: document.getElementById('fVehicle').value,
+      phone: document.getElementById('fPhone').value.trim(),
+      cred: document.getElementById('fCred').value.trim(),
+      active: true
+    });
+  }
+  var existing = ISV.db.users().find(function(u){ return u.email === email; });
+  ok.textContent = existing ? "Done — " + email + " is now a " + role + "." : "Saved — " + role + " access is waiting for " + email + " when they create their account.";
+  document.getElementById('fEmail').value = "";
+  render();
+};
+
+function render(){
+  var staff = ISV.auth.accounts().filter(function(u){ return u.role === "driver" || u.role === "owner"; });
+  document.getElementById('rows').innerHTML = staff.map(function(u){
+    var p = ISV.auth.profile(u.email);
+    var active = p.active !== false;
+    var isMe = u.email === me.email;
+    return '<tr>'+
+      '<td><div style="font:600 14.5px/1.4 Figtree,sans-serif;">'+ISV.esc(u.name)+(isMe?' <span style="font:600 11px/1 Figtree,sans-serif;color:oklch(0.55 0.015 250);">(you)</span>':'')+'</div>'+
+      '<div style="font:400 13px/1.4 Figtree,sans-serif;color:oklch(0.55 0.015 250);">'+ISV.esc(u.email)+(p.phone?' · '+ISV.esc(p.phone):'')+'</div>'+
+      (u.pending ? '<div style="margin-top:4px;"><span style="font:600 11px/1 Figtree,sans-serif;color:oklch(0.55 0.13 60);background:oklch(0.97 0.03 85);padding:4px 9px;border-radius:999px;">Invited — no account yet</span></div>' : '')+'</td>'+
+      '<td><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'+
+        '<span style="padding:5px 11px;border-radius:999px;background:'+(u.role==="owner"?'oklch(0.32 0.03 248)':'oklch(0.95 0.025 237)')+';font:600 12px/1 Figtree,sans-serif;color:'+(u.role==="owner"?'#fff':'oklch(0.45 0.10 240)')+';">'+(u.role==="owner"?'Owner':'Driver')+'</span>'+
+        (u.role==="driver" && !active ? '<span style="padding:5px 11px;border-radius:999px;background:oklch(0.95 0.008 250);font:600 12px/1 Figtree,sans-serif;color:oklch(0.50 0.015 250);">Inactive</span>' : '')+
+      '</div>'+(u.role==="driver" && p.vehicle ? '<div style="font:400 13px/1.5 Figtree,sans-serif;color:oklch(0.55 0.015 250);margin-top:4px;">'+ISV.esc(p.vehicle)+'</div>' : '')+'</td>'+
+      '<td style="font:400 13.5px/1.5 Figtree,sans-serif;color:oklch(0.45 0.015 250);">'+ISV.esc(p.cred || "—")+'</td>'+
+      '<td style="font:600 13.5px/1.5 Figtree,sans-serif;">'+(u.role==="driver" || u.role==="owner" ? weekCount(u.email) + " rides" : "—")+'</td>'+
+      '<td><div style="display:flex;gap:8px;flex-wrap:wrap;">'+
+        (u.role === "driver" ? '<button class="chip" data-act="toggle" data-email="'+ISV.esc(u.email)+'">'+(active?'Deactivate':'Activate')+'</button>' : '')+
+        (!isMe ? '<button class="chip" data-act="remove" data-email="'+ISV.esc(u.email)+'" style="color:oklch(0.50 0.15 25);">Remove access</button>' : '')+
+      '</div></td></tr>';
+  }).join('') || '<tr><td colspan="5" style="text-align:center;padding:36px;color:oklch(0.55 0.015 250);">No team members yet — add a driver above.</td></tr>';
+
+  document.querySelectorAll('[data-act="toggle"]').forEach(function(el){
+    el.onclick = function(){
+      var email = this.getAttribute('data-email');
+      var p = ISV.auth.profile(email);
+      ISV.auth.saveProfile(email, { active: p.active === false });
+      render();
+    };
+  });
+  document.querySelectorAll('[data-act="remove"]').forEach(function(el){
+    el.onclick = function(){
+      var email = this.getAttribute('data-email');
+      if (confirm("Remove " + email + "'s access? Their account stays, but it goes back to a regular client account.")){
+        ISV.auth.removeRole(email);
+        render();
+      }
+    };
+  });
+
+  var clients = ISV.auth.accounts().filter(function(u){ return u.role === "client"; });
+  document.getElementById('clientRows').innerHTML = clients.length ? clients.map(function(u){
+    return '<div style="display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 0;border-bottom:1px solid oklch(0.95 0.008 250);flex-wrap:wrap;">'+
+      '<div><span style="font:600 14px/1.4 Figtree,sans-serif;">'+ISV.esc(u.name)+'</span>'+
+      '<span style="font:400 13px/1.4 Figtree,sans-serif;color:oklch(0.55 0.015 250);"> · '+ISV.esc(u.email)+'</span></div>'+
+      '<button class="chip" data-promote="'+ISV.esc(u.email)+'">Make driver</button></div>';
+  }).join('') : '<span style="font:400 14px/1.6 Figtree,sans-serif;color:oklch(0.58 0.015 250);">No client accounts yet.</span>';
+
+  document.querySelectorAll('[data-promote]').forEach(function(el){
+    el.onclick = function(){
+      var email = this.getAttribute('data-promote');
+      document.getElementById('fEmail').value = email;
+      form.style.display = "flex";
+      window.scrollTo({top:0, behavior:'smooth'});
+    };
+  });
+}
+render();
+}
+</script>
+</body>
+</html>

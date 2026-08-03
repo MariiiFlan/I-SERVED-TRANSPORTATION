@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Book a Ride — I Served Transportation</title>
+<link rel="stylesheet" href="../assets/base.css">
+</head>
+<body>
+<div id="hdr"></div>
+
+<main style="max-width:1180px;margin:0 auto;padding:56px 32px 90px;">
+  <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:36px;">
+    <span class="kicker">Ride request</span>
+    <h1 style="margin:0;font:700 46px/1.05 'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:0.01em;">Book a ride</h1>
+    <p style="margin:0;font:400 17px/1.6 Figtree,sans-serif;color:oklch(0.50 0.015 250);">No payment now. A dispatcher confirms your pickup window within two hours.</p>
+  </div>
+
+  <div class="booking-grid" style="display:grid;grid-template-columns:1.35fr 0.65fr;gap:32px;align-items:start;">
+    <div style="display:flex;flex-direction:column;gap:26px;">
+
+      <div class="card">
+        <h2 style="margin:0;font:700 15px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.45 0.02 250);">1 · Trip type</h2>
+        <div id="tripTypes" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;"></div>
+      </div>
+
+      <div class="card">
+        <h2 style="margin:0;font:700 15px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.45 0.02 250);">2 · Where &amp; when</h2>
+        <div style="display:flex;flex-direction:column;gap:7px;">
+          <label class="lbl">Pickup address</label>
+          <input id="pickup" class="inp" placeholder="35660 Carissa Ct, Wildomar, CA">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:7px;">
+          <label class="lbl">Destination</label>
+          <input id="dropoff" class="inp" placeholder="Clinic, hospital, or facility name">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div style="display:flex;flex-direction:column;gap:7px;">
+            <label class="lbl">Date</label>
+            <input id="date" type="date" class="inp">
+          </div>
+          <div style="display:flex;flex-direction:column;gap:7px;">
+            <label class="lbl">Appointment time</label>
+            <input id="time" type="time" value="10:00" class="inp">
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px;padding-top:4px;">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;">
+            <label class="lbl">Approximate distance</label>
+            <span id="milesLabel" style="font:700 17px/1 'Barlow Condensed',sans-serif;letter-spacing:0.02em;color:oklch(0.50 0.115 238);"></span>
+          </div>
+          <input id="miles" type="range" min="2" max="80" step="1" value="12" style="width:100%;">
+          <span style="font:400 13px/1.4 Figtree,sans-serif;color:oklch(0.58 0.015 250);">Drag to estimate one-way mileage — dispatch confirms the exact figure.</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 style="margin:0;font:700 15px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.45 0.02 250);">3 · Vehicle &amp; assistance</h2>
+        <div id="vehicles" class="grid3" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;"></div>
+        <div id="addOns" style="display:flex;flex-direction:column;gap:10px;"></div>
+        <div style="display:flex;flex-direction:column;gap:7px;">
+          <label class="lbl">Passengers riding along</label>
+          <select id="pax" class="inp">
+            <option value="1">Just the passenger</option>
+            <option value="2">Passenger + 1 companion</option>
+            <option value="3">Passenger + 2 companions</option>
+            <option value="4">Passenger + 3 companions</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 style="margin:0;font:700 15px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.45 0.02 250);">4 · Who should we confirm with</h2>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;" class="grid2">
+          <div style="display:flex;flex-direction:column;gap:7px;">
+            <label class="lbl">Full name</label>
+            <input id="name" class="inp" placeholder="Passenger or coordinator">
+          </div>
+          <div style="display:flex;flex-direction:column;gap:7px;">
+            <label class="lbl">Phone</label>
+            <input id="phone" class="inp" placeholder="(000) 000-0000">
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:7px;">
+          <label class="lbl">Anything the driver should know</label>
+          <textarea id="notes" rows="3" class="inp" style="resize:vertical;" placeholder="Oxygen tank, walker, gate code, second-floor apartment…"></textarea>
+        </div>
+        <div id="acctHint" style="font:400 13px/1.55 Figtree,sans-serif;color:oklch(0.55 0.015 250);"></div>
+      </div>
+    </div>
+
+    <div style="position:sticky;top:100px;display:flex;flex-direction:column;gap:16px;">
+      <div style="border:1px solid oklch(0.88 0.03 237);border-radius:16px;overflow:hidden;">
+        <div style="padding:20px 22px;background:oklch(0.96 0.018 237);display:flex;flex-direction:column;gap:4px;">
+          <span style="font:600 11px/1 Barlow,sans-serif;letter-spacing:0.16em;text-transform:uppercase;color:oklch(0.48 0.09 240);">Live estimate</span>
+          <span id="totalBig" style="font:700 40px/1.05 'Barlow Condensed',sans-serif;letter-spacing:0.01em;color:oklch(0.30 0.04 245);"></span>
+          <span id="estSummary" style="font:400 13px/1.45 Figtree,sans-serif;color:oklch(0.48 0.03 243);"></span>
+        </div>
+        <div style="padding:18px 22px;display:flex;flex-direction:column;gap:11px;background:#fff;">
+          <div id="breakdown" style="display:flex;flex-direction:column;gap:11px;"></div>
+          <div style="height:1px;background:oklch(0.93 0.01 250);"></div>
+          <div style="display:flex;align-items:baseline;justify-content:space-between;">
+            <span style="font:600 15px/1.4 Figtree,sans-serif;color:oklch(0.30 0.02 250);">Estimated total</span>
+            <span id="totalSmall" style="font:700 17px/1.4 Figtree,sans-serif;color:oklch(0.30 0.02 250);"></span>
+          </div>
+          <button class="btn" id="submit" style="margin-top:6px;">Request this ride</button>
+          <span id="formErr" class="err"></span>
+          <span style="font:400 12px/1.5 Figtree,sans-serif;color:oklch(0.58 0.015 250);text-wrap:pretty;">Estimate only — final fare is confirmed by dispatch before pickup. Nothing is charged today.</span>
+        </div>
+      </div>
+      <div style="padding:18px 20px;border:1px solid oklch(0.93 0.012 250);border-radius:14px;display:flex;flex-direction:column;gap:7px;background:oklch(0.99 0.004 250);">
+        <span style="font:600 14px/1.3 Figtree,sans-serif;color:oklch(0.32 0.02 250);">Booking for a facility?</span>
+        <span style="font:400 14px/1.55 Figtree,sans-serif;color:oklch(0.52 0.015 250);">Call <a id="facTel" href="#"></a> for standing schedules and invoiced accounts.</span>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div id="ftr"></div>
+
+<script src="../assets/config.js"></script>
+<script src="../assets/app.js"></script>
+<script>
+ISV.root = "../";
+document.getElementById('hdr').innerHTML = ISV.header("../");
+document.getElementById('ftr').innerHTML = ISV.footer("../");
+var facTel = document.getElementById('facTel');
+facTel.textContent = CONFIG.PHONE_DISPLAY; facTel.href = 'tel:' + CONFIG.PHONE_TEL;
+
+var S = { tripType:"oneway", vehicle:"sedan", addOns:{wait:false,assist:false,afterHours:false}, miles:12 };
+
+// pull draft from home widget
+try {
+  var d = JSON.parse(localStorage.getItem('isv_draft')||'null');
+  if (d) {
+    if (d.pickup) document.getElementById('pickup').value = d.pickup;
+    if (d.dropoff) document.getElementById('dropoff').value = d.dropoff;
+    if (d.date) document.getElementById('date').value = d.date;
+    if (d.time) document.getElementById('time').value = d.time;
+    if (d.tripType) S.tripType = d.tripType;
+    localStorage.removeItem('isv_draft');
+  }
+} catch(e){}
+
+var me = ISV.auth.me();
+document.getElementById('acctHint').innerHTML = me
+  ? 'This ride will be saved to your account (<b>' + ISV.esc(me.email) + '</b>) so you can track it under <a href="../my-rides/">My rides</a>.'
+  : 'Have an account? <a href="../account/?next=/book/">Sign in</a> and this booking is saved to <a href="../account/?next=/book/">My rides</a> automatically. Not required.';
+if (me) {
+  if (me.name) document.getElementById('name').value = me.name;
+  if (me.phone) document.getElementById('phone').value = me.phone;
+}
+
+var TT = [
+  { id:"oneway", label:"One way", note:"Drop-off only" },
+  { id:"round",  label:"Round trip", note:"Same driver both ways" }
+];
+var VH = [
+  { id:"sedan", label:"Sedan", note:"Ambulatory, up to 3" },
+  { id:"suv",   label:"SUV", note:"Extra room, walker fits" },
+  { id:"wav",   label:"Wheelchair van", note:"Ramp + securement" }
+];
+var AO = [
+  { id:"wait",       label:"Driver waits at the appointment",  price: CONFIG.ADDON_WAIT },
+  { id:"assist",     label:"Door-through-door assistance",     price: CONFIG.ADDON_ASSIST },
+  { id:"afterHours", label:"Pickup before 6am or after 8pm",   price: CONFIG.ADDON_AFTERHOURS }
+];
+
+function feeNote(v){ var f = CONFIG.VEHICLE_FEE[v]||0; return f ? "+$"+f : "Included"; }
+
+function render(){
+  document.getElementById('tripTypes').innerHTML = TT.map(function(t){
+    return '<div class="selbox'+(S.tripType===t.id?' on':'')+'" data-tt="'+t.id+'">'+
+      '<span style="font:600 16px/1.2 Figtree,sans-serif;color:oklch(0.30 0.02 250);">'+t.label+'</span>'+
+      '<span style="font:400 13px/1.45 Figtree,sans-serif;color:oklch(0.55 0.015 250);">'+t.note+'</span><div class="ring"></div></div>';
+  }).join('');
+  document.getElementById('vehicles').innerHTML = VH.map(function(v){
+    return '<div class="selbox'+(S.vehicle===v.id?' on':'')+'" data-vh="'+v.id+'" style="padding:16px;gap:6px;">'+
+      '<span style="font:600 15px/1.2 Figtree,sans-serif;color:oklch(0.30 0.02 250);">'+v.label+'</span>'+
+      '<span style="font:400 12px/1.4 Figtree,sans-serif;color:oklch(0.55 0.015 250);">'+v.note+'</span>'+
+      '<span style="font:600 12px/1 Figtree,sans-serif;color:oklch(0.55 0.115 238);">'+feeNote(v.id)+'</span><div class="ring"></div></div>';
+  }).join('');
+  document.getElementById('addOns').innerHTML = AO.map(function(a){
+    var on = S.addOns[a.id];
+    return '<div data-ao="'+a.id+'" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 16px;border:1px solid oklch(0.93 0.012 250);border-radius:10px;background:oklch(0.99 0.004 250);">'+
+      '<div style="display:flex;align-items:center;gap:12px;">'+
+      '<div style="position:relative;width:20px;height:20px;border-radius:5px;border:1.5px solid oklch(0.80 0.02 250);background:#fff;">'+
+      (on ? '<div style="position:absolute;inset:-1.5px;border-radius:5px;background:oklch(0.62 0.115 237);display:flex;align-items:center;justify-content:center;font:700 12px/1 Figtree,sans-serif;color:#fff;">✓</div>' : '')+
+      '</div><span style="font:500 15px/1.3 Figtree,sans-serif;color:oklch(0.32 0.02 250);">'+a.label+'</span></div>'+
+      '<span style="font:600 14px/1 Figtree,sans-serif;color:oklch(0.55 0.015 250);">+$'+a.price+'</span></div>';
+  }).join('');
+  document.querySelectorAll('[data-tt]').forEach(function(el){ el.onclick=function(){ S.tripType=this.getAttribute('data-tt'); render(); }; });
+  document.querySelectorAll('[data-vh]').forEach(function(el){ el.onclick=function(){ S.vehicle=this.getAttribute('data-vh'); render(); }; });
+  document.querySelectorAll('[data-ao]').forEach(function(el){ el.onclick=function(){ var k=this.getAttribute('data-ao'); S.addOns[k]=!S.addOns[k]; render(); }; });
+  calc();
+}
+
+function calc(){
+  S.miles = +document.getElementById('miles').value;
+  document.getElementById('milesLabel').textContent = S.miles + " mi one way";
+  var f = ISV.fare(S);
+  document.getElementById('totalBig').textContent = ISV.money(f.total);
+  document.getElementById('totalSmall').textContent = ISV.money(f.total);
+  document.getElementById('estSummary').textContent = f.miles + " mi · " + ISV.vehicleName(S.vehicle) + (S.tripType==="round" ? " · round trip" : " · one way");
+  document.getElementById('breakdown').innerHTML = f.rows.map(function(r){
+    return '<div style="display:flex;align-items:baseline;justify-content:space-between;gap:14px;">'+
+      '<span style="font:400 14px/1.4 Figtree,sans-serif;color:oklch(0.52 0.015 250);">'+r.label+'</span>'+
+      '<span style="font:600 14px/1.4 Figtree,sans-serif;color:oklch(0.32 0.02 250);">'+r.amount+'</span></div>';
+  }).join('');
+}
+document.getElementById('miles').addEventListener('input', calc);
+
+document.getElementById('submit').onclick = function(){
+  var err = document.getElementById('formErr'); err.textContent = "";
+  var name = document.getElementById('name').value.trim();
+  var phone = document.getElementById('phone').value.trim();
+  var pickup = document.getElementById('pickup').value.trim();
+  var dropoff = document.getElementById('dropoff').value.trim();
+  var date = document.getElementById('date').value;
+  if (!pickup || !dropoff) { err.textContent = "Add a pickup and destination."; return; }
+  if (!date) { err.textContent = "Pick a date."; return; }
+  if (!name || !phone) { err.textContent = "Add a name and phone so dispatch can confirm."; return; }
+  var f = ISV.fare(S);
+  var b = ISV.book.add({
+    name:name, phone:phone,
+    userEmail: me ? me.email : null,
+    pickup:pickup, dropoff:dropoff,
+    date:date, time:document.getElementById('time').value,
+    tripType:S.tripType, vehicle:S.vehicle, addOns:Object.assign({},S.addOns),
+    pax:document.getElementById('pax').value,
+    notes:document.getElementById('notes').value.trim(),
+    miles:f.miles, fare:+f.total.toFixed(2)
+  });
+  location.href = '../confirm/?id=' + b.id;
+};
+
+render();
+</script>
+</body>
+</html>

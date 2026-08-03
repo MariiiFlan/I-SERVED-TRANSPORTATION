@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Account — I Served Transportation</title>
+<link rel="stylesheet" href="../assets/base.css">
+</head>
+<body>
+<div style="min-height:100vh;display:grid;grid-template-columns:1fr 1fr;" class="split">
+
+  <div style="display:flex;align-items:center;justify-content:center;padding:48px 32px;">
+    <div style="width:100%;max-width:400px;display:flex;flex-direction:column;gap:24px;">
+      <a href="../" style="color:inherit;" id="logoSlot"></a>
+
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <h1 id="title" style="margin:0;font:700 38px/1.05 'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:0.01em;">Sign in</h1>
+        <p id="subtitle" style="margin:0;font:400 15px/1.6 Figtree,sans-serif;color:oklch(0.50 0.015 250);">One account for everything — booking rides, driving, or running dispatch.</p>
+      </div>
+
+      <div id="notice" style="display:none;padding:13px 16px;border-radius:10px;background:oklch(0.96 0.03 85);font:500 14px/1.5 Figtree,sans-serif;color:oklch(0.42 0.09 75);"></div>
+
+      <!-- SIGN IN -->
+      <div id="signinForm" style="display:flex;flex-direction:column;gap:14px;">
+        <div style="display:flex;flex-direction:column;gap:7px;">
+          <label class="lbl">Email</label>
+          <input id="siEmail" type="email" class="inp" placeholder="you@email.com" autocomplete="email">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:7px;">
+          <label class="lbl">Password</label>
+          <input id="siPass" type="password" class="inp" placeholder="Your password" autocomplete="current-password">
+        </div>
+        <button class="btn" id="siGo">Sign in</button>
+        <span id="siErr" class="err"></span>
+        <span style="font:400 14px/1.6 Figtree,sans-serif;color:oklch(0.52 0.015 250);">New here? <a href="#" id="showCreate">Create an account</a> — it takes 30 seconds.</span>
+      </div>
+
+      <!-- CREATE -->
+      <div id="createForm" style="display:none;flex-direction:column;gap:14px;">
+        <div style="display:flex;flex-direction:column;gap:7px;">
+          <label class="lbl">Full name</label>
+          <input id="crName" class="inp" placeholder="First and last name" autocomplete="name">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:7px;">
+          <label class="lbl">Email</label>
+          <input id="crEmail" type="email" class="inp" placeholder="you@email.com" autocomplete="email">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:7px;">
+          <label class="lbl">Phone</label>
+          <input id="crPhone" type="tel" class="inp" placeholder="(000) 000-0000" autocomplete="tel">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:7px;">
+          <label class="lbl">Password</label>
+          <input id="crPass" type="password" class="inp" placeholder="At least 4 characters" autocomplete="new-password">
+        </div>
+        <button class="btn" id="crGo">Create account</button>
+        <span id="crErr" class="err"></span>
+        <span style="font:400 14px/1.6 Figtree,sans-serif;color:oklch(0.52 0.015 250);">Already have one? <a href="#" id="showSignin">Sign in</a></span>
+      </div>
+
+      <div style="height:1px;background:oklch(0.94 0.008 250);"></div>
+      <span style="font:400 13px/1.6 Figtree,sans-serif;color:oklch(0.58 0.015 250);">Drivers and dispatch: use the same sign-in. The owner controls who gets driver or owner access from the console.</span>
+    </div>
+  </div>
+
+  <div style="background:oklch(0.32 0.03 248);display:flex;align-items:center;justify-content:center;padding:48px 32px;">
+    <div style="max-width:420px;display:flex;flex-direction:column;gap:26px;">
+      <div style="display:flex;flex-direction:column;gap:3px;align-items:flex-start;">
+        <div style="width:44px;height:12px;background:#fff;clip-path:polygon(0 0,50% 100%,100% 0,100% 34%,50% 100%,0 34%);"></div>
+        <div style="width:44px;height:12px;background:oklch(0.80 0.08 237);clip-path:polygon(0 0,50% 100%,100% 0,100% 34%,50% 100%,0 34%);"></div>
+        <div style="width:44px;height:12px;background:oklch(0.62 0.10 237);clip-path:polygon(0 0,50% 100%,100% 0,100% 34%,50% 100%,0 34%);"></div>
+      </div>
+      <h2 style="margin:0;font:700 40px/1.08 'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:0.01em;color:#fff;">One login.<br>Three consoles.</h2>
+      <div style="display:flex;flex-direction:column;gap:14px;">
+        <div style="display:flex;gap:12px;align-items:flex-start;"><span style="font:700 16px/1.4 'Barlow Condensed',sans-serif;color:oklch(0.80 0.08 237);">01</span><span style="font:400 15px/1.55 Figtree,sans-serif;color:rgba(255,255,255,0.82);"><b style="color:#fff;">Clients</b> see every ride they've booked and its status.</span></div>
+        <div style="display:flex;gap:12px;align-items:flex-start;"><span style="font:700 16px/1.4 'Barlow Condensed',sans-serif;color:oklch(0.80 0.08 237);">02</span><span style="font:400 15px/1.55 Figtree,sans-serif;color:rgba(255,255,255,0.82);"><b style="color:#fff;">Drivers</b> get their assigned rides the moment dispatch taps their name.</span></div>
+        <div style="display:flex;gap:12px;align-items:flex-start;"><span style="font:700 16px/1.4 'Barlow Condensed',sans-serif;color:oklch(0.80 0.08 237);">03</span><span style="font:400 15px/1.55 Figtree,sans-serif;color:rgba(255,255,255,0.82);"><b style="color:#fff;">The owner</b> sees everything and decides who's a driver or an owner — by email, from the Team page.</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../assets/config.js"></script>
+<script src="../assets/app.js"></script>
+<script>
+ISV.root = "../";
+document.getElementById('logoSlot').innerHTML = ISV.logo(34);
+
+var qs = new URLSearchParams(location.search);
+var next = qs.get('next') || "";
+var denied = qs.get('denied');
+
+function homeFor(role){
+  if (next) return "../" + next.replace(/^\//,'');
+  if (role === "owner") return "../owner/dashboard/";
+  if (role === "driver") return "../driver/rides/";
+  return "../my-rides/";
+}
+
+var me = ISV.auth.me();
+if (denied){
+  var n = document.getElementById('notice');
+  n.style.display = "block";
+  n.innerHTML = (denied === "owner"
+    ? "That page is for owner accounts. You're signed in as " + (me ? ISV.esc(me.email) + " (" + me.role + ")" : "no one") + ". Ask the owner to grant your email owner access from the Team page."
+    : "That page is for driver accounts. Ask the owner to add your email as a driver from the Team page — then it unlocks automatically.")
+    + (me ? ' <a href="#" id="noticeOut">Sign out</a> to use a different account.' : '');
+  var no = document.getElementById('noticeOut');
+  if (no) no.onclick = function(e){ e.preventDefault(); ISV.auth.signOut(); location.href = "./"; };
+} else if (me){
+  location.href = homeFor(me.role);
+}
+
+// first-account hint
+if (ISV.db.users().length === 0){
+  var n2 = document.getElementById('notice');
+  n2.style.display = "block";
+  n2.textContent = "No accounts exist yet — the first account created becomes the Owner account.";
+  document.getElementById('signinForm').style.display = "none";
+  document.getElementById('createForm').style.display = "flex";
+  document.getElementById('title').textContent = "Create the first account";
+}
+
+document.getElementById('showCreate').onclick = function(e){ e.preventDefault();
+  document.getElementById('signinForm').style.display = "none";
+  document.getElementById('createForm').style.display = "flex";
+  document.getElementById('title').textContent = "Create account";
+};
+document.getElementById('showSignin').onclick = function(e){ e.preventDefault();
+  document.getElementById('createForm').style.display = "none";
+  document.getElementById('signinForm').style.display = "flex";
+  document.getElementById('title').textContent = "Sign in";
+};
+
+document.getElementById('siGo').onclick = async function(){
+  var err = document.getElementById('siErr'); err.textContent = "";
+  try {
+    var u = await ISV.auth.signIn(document.getElementById('siEmail').value, document.getElementById('siPass').value);
+    location.href = homeFor(u.role);
+  } catch(e){ err.textContent = e; }
+};
+document.getElementById('crGo').onclick = async function(){
+  var err = document.getElementById('crErr'); err.textContent = "";
+  try {
+    var role = await ISV.auth.register(
+      document.getElementById('crName').value,
+      document.getElementById('crEmail').value,
+      document.getElementById('crPhone').value,
+      document.getElementById('crPass').value
+    );
+    location.href = homeFor(role);
+  } catch(e){ err.textContent = e; }
+};
+['siPass','crPass'].forEach(function(id){
+  document.getElementById(id).addEventListener('keydown', function(e){
+    if (e.key === 'Enter') document.getElementById(id === 'siPass' ? 'siGo' : 'crGo').click();
+  });
+});
+</script>
+</body>
+</html>

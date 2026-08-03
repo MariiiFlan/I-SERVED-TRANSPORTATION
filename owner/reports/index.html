@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reports — I Served Dispatch</title>
+<link rel="stylesheet" href="../../assets/base.css">
+<style>body{background:oklch(0.975 0.006 250);}</style>
+</head>
+<body>
+<div class="console">
+  <div id="side"></div>
+  <main>
+    <div style="display:flex;flex-direction:column;gap:6px;">
+      <span class="kicker" style="letter-spacing:0.16em;font-size:11px;">Last 8 weeks</span>
+      <h2 style="margin:0;font:700 34px/1.05 'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:0.01em;">Reports</h2>
+    </div>
+
+    <div class="grid3" style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;">
+      <div class="statcard"><span class="k">Completed rides</span><span class="v" id="rDone">0</span><span class="s">All time</span></div>
+      <div class="statcard"><span class="k">Revenue (completed)</span><span class="v" id="rRev">$0</span><span class="s">All time</span></div>
+      <div class="statcard"><span class="k">Avg fare</span><span class="v" id="rAvg">$0</span><span class="s">Per completed ride</span></div>
+    </div>
+
+    <div class="card" style="gap:16px;">
+      <span style="font:700 14px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.45 0.02 250);">Rides per week</span>
+      <div id="ridesChart" style="display:flex;align-items:flex-end;gap:14px;height:170px;"></div>
+    </div>
+
+    <div class="card" style="gap:16px;">
+      <span style="font:700 14px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.45 0.02 250);">Revenue booked per week</span>
+      <div id="revChart" style="display:flex;align-items:flex-end;gap:14px;height:170px;"></div>
+    </div>
+
+    <div class="card" style="gap:12px;">
+      <span style="font:700 14px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.45 0.02 250);">By driver, this week</span>
+      <div id="byDriver" style="display:flex;flex-direction:column;"></div>
+    </div>
+  </main>
+</div>
+
+<script src="../../assets/config.js"></script>
+<script src="../../assets/app.js"></script>
+<script>
+ISV.root = "../../";
+var me = ISV.auth.require("owner", "/owner/reports/");
+if (me){
+document.getElementById('side').innerHTML = ISV.sidebar("../../", "rep", "Dispatch console", [
+  { id:"dash", label:"Dashboard", href:"../dashboard/" },
+  { id:"team", label:"Team", href:"../team/" },
+  { id:"rep",  label:"Reports", href:"../reports/" }
+]);
+
+function iso(d){ return d.toISOString().slice(0,10); }
+function monday(offsetWeeks){
+  var d = new Date(); var day = (d.getDay()+6)%7;
+  d.setDate(d.getDate() - day - offsetWeeks*7);
+  return d;
+}
+
+var all = ISV.book.all().filter(function(b){ return b.status !== "Cancelled"; });
+var done = all.filter(function(b){ return b.status === "Completed"; });
+document.getElementById('rDone').textContent = done.length;
+var rev = done.reduce(function(s,b){ return s+(b.fare||0); },0);
+document.getElementById('rRev').textContent = "$" + Math.round(rev).toLocaleString();
+document.getElementById('rAvg').textContent = done.length ? "$" + Math.round(rev/done.length) : "$0";
+
+var weeks = [];
+for (var i=7;i>=0;i--){
+  var mon = monday(i); var sun = new Date(mon); sun.setDate(mon.getDate()+6);
+  var wb = all.filter(function(b){ return b.date >= iso(mon) && b.date <= iso(sun); });
+  weeks.push({ label: (mon.getMonth()+1)+"/"+mon.getDate(), rides: wb.length, rev: wb.reduce(function(s,b){ return s+(b.fare||0); },0) });
+}
+function bars(el, key, fmt){
+  var max = Math.max.apply(null, weeks.map(function(w){ return w[key]; }).concat([1]));
+  document.getElementById(el).innerHTML = weeks.map(function(w){
+    var h = Math.max(4, Math.round(w[key]/max*130));
+    return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;">'+
+      '<span style="font:600 12px/1 Figtree,sans-serif;color:oklch(0.45 0.015 250);">'+(w[key]?fmt(w[key]):'')+'</span>'+
+      '<div style="width:100%;max-width:54px;height:'+h+'px;border-radius:7px 7px 3px 3px;background:linear-gradient(180deg, oklch(0.62 0.115 237), oklch(0.52 0.10 240));"></div>'+
+      '<span style="font:600 11px/1 Barlow,sans-serif;letter-spacing:0.08em;color:oklch(0.55 0.015 250);">'+w.label+'</span></div>';
+  }).join('');
+}
+bars('ridesChart','rides',function(v){ return v; });
+bars('revChart','rev',function(v){ return "$"+Math.round(v); });
+
+var wr0 = monday(0), wr1 = new Date(wr0); wr1.setDate(wr0.getDate()+6);
+var thisWeek = all.filter(function(b){ return b.date >= iso(wr0) && b.date <= iso(wr1) && b.driverEmail; });
+var byD = {};
+thisWeek.forEach(function(b){ byD[b.driverEmail] = byD[b.driverEmail] || {n:0,rev:0}; byD[b.driverEmail].n++; byD[b.driverEmail].rev += b.fare||0; });
+var keys = Object.keys(byD);
+document.getElementById('byDriver').innerHTML = keys.length ? keys.map(function(email){
+  var u = ISV.auth.accounts().find(function(x){ return x.email === email; });
+  return '<div style="display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 0;border-bottom:1px solid oklch(0.95 0.008 250);">'+
+    '<span style="font:600 14px/1.4 Figtree,sans-serif;">'+ISV.esc(u?u.name:email)+'</span>'+
+    '<span style="font:500 14px/1.4 Figtree,sans-serif;color:oklch(0.45 0.015 250);">'+byD[email].n+' rides · $'+Math.round(byD[email].rev)+'</span></div>';
+}).join('') : '<span style="font:400 14px/1.6 Figtree,sans-serif;color:oklch(0.58 0.015 250);">No assigned rides this week yet.</span>';
+}
+</script>
+</body>
+</html>

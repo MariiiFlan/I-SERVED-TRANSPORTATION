@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pay — I Served Transportation</title>
+<link rel="stylesheet" href="../assets/base.css">
+</head>
+<body>
+<div id="hdr"></div>
+
+<main style="max-width:640px;margin:0 auto;padding:76px 32px 100px;display:flex;flex-direction:column;gap:24px;">
+  <span class="kicker">Payments</span>
+  <h1 style="margin:0;font:700 46px/1.05 'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:0.01em;">Pay for a ride</h1>
+  <p style="margin:0;font:400 17px/1.65 Figtree,sans-serif;color:oklch(0.50 0.015 250);">Online payments aren't switched on yet. For now, rides are private pay collected at pickup — cash or card with your driver.</p>
+
+  <div class="card" style="gap:14px;">
+    <span style="font:700 14px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.45 0.02 250);">Coming soon</span>
+    <div style="display:flex;flex-direction:column;gap:7px;">
+      <label class="lbl">Request ID</label>
+      <input class="inp" placeholder="IST-000000" disabled>
+    </div>
+    <button class="btn" disabled style="opacity:0.45;cursor:default;">Pay online — not yet available</button>
+    <span style="font:400 13px/1.6 Figtree,sans-serif;color:oklch(0.58 0.015 250);">
+      <!-- OWNER NOTE: when you're ready for online payments, this is where a Stripe
+           Payment Link or PayPal button goes — same as the blank PayPal setup we left
+           on the AVR site. Nothing else on the site needs to change. -->
+      Questions about paying? Call <a id="pTel" href="#"></a>.
+    </span>
+  </div>
+</main>
+
+<div id="ftr"></div>
+
+<script src="../assets/config.js"></script>
+<script src="../assets/app.js"></script>
+<script>
+ISV.root = "../";
+document.getElementById('hdr').innerHTML = ISV.header("../");
+document.getElementById('ftr').innerHTML = ISV.footer("../");
+var t = document.getElementById('pTel');
+t.textContent = CONFIG.PHONE_DISPLAY; t.href = 'tel:' + CONFIG.PHONE_TEL;
+</script>
+</body>
+</html>

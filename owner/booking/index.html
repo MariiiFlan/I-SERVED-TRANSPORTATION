@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Booking — I Served Dispatch</title>
+<link rel="stylesheet" href="../../assets/base.css">
+<style>body{background:oklch(0.975 0.006 250);}</style>
+</head>
+<body>
+<div class="console">
+  <div id="side"></div>
+  <main id="main"></main>
+</div>
+
+<script src="../../assets/config.js"></script>
+<script src="../../assets/app.js"></script>
+<script>
+ISV.root = "../../";
+var me = ISV.auth.require("owner", "/owner/dashboard/");
+if (me){
+var id = new URLSearchParams(location.search).get('id');
+
+document.getElementById('side').innerHTML = ISV.sidebar("../../", "dash", "Dispatch console", [
+  { id:"dash", label:"Dashboard", href:"../dashboard/" },
+  { id:"team", label:"Team", href:"../team/" },
+  { id:"rep",  label:"Reports", href:"../reports/" }
+]);
+
+function fmtLogTime(t){ return new Date(t).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}); }
+
+function render(){
+  var b = ISV.book.byId(id);
+  var m = document.getElementById('main');
+  if (!b){ m.innerHTML = '<p style="font:400 16px/1.6 Figtree,sans-serif;">Booking not found. <a href="../dashboard/">← All bookings</a></p>'; return; }
+  var drivers = ISV.auth.drivers().filter(function(d){ return d.active; });
+  var f = { rows: [], total: b.fare };
+  try { f = ISV.fare(b); } catch(e){}
+
+  m.innerHTML =
+  '<div style="display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;">'+
+    '<div style="display:flex;flex-direction:column;gap:8px;">'+
+      '<a href="../dashboard/" style="font:600 13px/1 Figtree,sans-serif;">← All bookings</a>'+
+      '<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">'+
+        '<h2 style="margin:0;font:700 34px/1.05 \'Barlow Condensed\',sans-serif;text-transform:uppercase;letter-spacing:0.01em;">'+b.id+'</h2>'+ISV.pill(b.status)+
+      '</div></div>'+
+    '<div style="display:flex;gap:10px;flex-wrap:wrap;">'+
+      (b.status !== "Completed" && b.status !== "Cancelled" ? '<button class="btn2" id="markDone" style="padding:12px 18px;font-size:14px;">Mark completed</button>' : '')+
+      (b.status !== "Cancelled" ? '<button class="btn2" id="cancelRide" style="padding:12px 18px;font-size:14px;color:oklch(0.50 0.15 25);">Cancel ride</button>'
+                                : '<button class="btn2" id="reopenRide" style="padding:12px 18px;font-size:14px;">Reopen</button>')+
+    '</div></div>'+
+
+  '<div class="booking-grid" style="display:grid;grid-template-columns:1.15fr 0.85fr;gap:20px;align-items:start;">'+
+    '<div style="display:flex;flex-direction:column;gap:20px;">'+
+
+      '<div class="card" style="gap:0;padding:0;overflow:hidden;">'+
+        '<div style="padding:16px 24px;background:oklch(0.985 0.008 237);border-bottom:1px solid oklch(0.93 0.01 250);font:700 14px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.45 0.02 250);">Trip</div>'+
+        '<div style="padding:8px 24px 16px;">'+
+          [["Pickup", b.pickup], ["Destination", b.dropoff], ["Date", ISV.fmtDate(b.date)+", "+(b.date||"").slice(0,4)], ["Appointment time", ISV.fmtTime(b.time)],
+           ["Trip type", (b.tripType==="round"?"Round trip":"One way")+" · "+b.miles+" mi total"], ["Vehicle", ISV.vehicleName(b.vehicle)]]
+          .map(function(r){ return '<div style="display:grid;grid-template-columns:170px 1fr;gap:16px;padding:12px 0;border-bottom:1px solid oklch(0.96 0.006 250);">'+
+            '<span style="font:500 14px/1.5 Figtree,sans-serif;color:oklch(0.56 0.015 250);">'+r[0]+'</span>'+
+            '<span style="font:600 15px/1.5 Figtree,sans-serif;color:oklch(0.30 0.02 250);">'+ISV.esc(r[1])+'</span></div>'; }).join('')+
+        '</div></div>'+
+
+      '<div class="card" style="gap:0;padding:0;overflow:hidden;">'+
+        '<div style="padding:16px 24px;background:oklch(0.985 0.008 237);border-bottom:1px solid oklch(0.93 0.01 250);font:700 14px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.45 0.02 250);">Passenger &amp; notes</div>'+
+        '<div style="padding:8px 24px 16px;">'+
+          [["Name", b.name], ["Phone", b.phone], ["Riding along", (b.pax>1 ? "Passenger + "+(b.pax-1)+" companion"+(b.pax>2?"s":"") : "Just the passenger")], ["Driver notes", b.notes || "None"]]
+          .map(function(r){ return '<div style="display:grid;grid-template-columns:170px 1fr;gap:16px;padding:12px 0;border-bottom:1px solid oklch(0.96 0.006 250);">'+
+            '<span style="font:500 14px/1.5 Figtree,sans-serif;color:oklch(0.56 0.015 250);">'+r[0]+'</span>'+
+            '<span style="font:600 15px/1.5 Figtree,sans-serif;color:oklch(0.30 0.02 250);">'+ISV.esc(r[1])+'</span></div>'; }).join('')+
+          '<div style="display:flex;gap:10px;padding:14px 0 6px;">'+
+            '<a class="btn2" style="padding:11px 16px;font-size:14px;" href="tel:'+ISV.esc(b.phone)+'">Call client</a>'+
+            '<a class="btn2" style="padding:11px 16px;font-size:14px;" href="sms:'+ISV.esc(b.phone)+'">Text client</a>'+
+          '</div>'+
+        '</div></div>'+
+
+      '<div class="card" style="gap:0;padding:0;overflow:hidden;">'+
+        '<div style="padding:16px 24px;background:oklch(0.985 0.008 237);border-bottom:1px solid oklch(0.93 0.01 250);font:700 14px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.45 0.02 250);">Activity</div>'+
+        '<div style="padding:12px 24px 18px;display:flex;flex-direction:column;gap:12px;">'+
+          (b.log||[]).slice().reverse().map(function(l){
+            return '<div style="display:flex;gap:12px;align-items:flex-start;">'+
+              '<div style="margin-top:6px;width:8px;height:8px;border-radius:50%;background:oklch(0.62 0.115 237);flex:0 0 auto;"></div>'+
+              '<div><div style="font:500 14px/1.5 Figtree,sans-serif;color:oklch(0.32 0.02 250);">'+ISV.esc(l.text)+'</div>'+
+              '<div style="font:400 12px/1.4 Figtree,sans-serif;color:oklch(0.58 0.015 250);">'+fmtLogTime(l.t)+'</div></div></div>';
+          }).join('')+
+        '</div></div>'+
+    '</div>'+
+
+    '<div style="display:flex;flex-direction:column;gap:20px;">'+
+      '<div class="card" style="gap:14px;">'+
+        '<span style="font:700 14px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.45 0.02 250);">Assign driver</span>'+
+        '<span style="font:400 14px/1.5 Figtree,sans-serif;color:oklch(0.52 0.015 250);">'+
+          (b.driverEmail ? 'Assigned to <b>'+ISV.esc((ISV.auth.accounts().find(function(u){return u.email===b.driverEmail;})||{}).name || b.driverEmail)+'</b>. The ride is in their console now.' : 'No driver on this ride yet.')+'</span>'+
+        '<div style="display:flex;flex-direction:column;gap:8px;">'+
+          (drivers.length ? drivers.map(function(d){
+            var on = b.driverEmail === d.email;
+            return '<div data-assign="'+ISV.esc(d.email)+'" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 15px;border:1px solid '+(on?'oklch(0.62 0.115 237)':'oklch(0.92 0.012 250)')+';border-radius:11px;background:'+(on?'oklch(0.62 0.115 237 / 0.06)':'#fff')+';">'+
+              '<div style="display:flex;flex-direction:column;gap:2px;">'+
+                '<span style="font:600 14.5px/1.3 Figtree,sans-serif;color:oklch(0.30 0.02 250);">'+ISV.esc(d.name)+'</span>'+
+                '<span style="font:400 12.5px/1.3 Figtree,sans-serif;color:oklch(0.55 0.015 250);">'+ISV.esc((d.vehicle||"Vehicle TBD")+(d.cred?' · '+d.cred:''))+'</span></div>'+
+              '<span style="font:600 12px/1 Figtree,sans-serif;color:'+(on?'oklch(0.50 0.115 238)':'oklch(0.55 0.015 250)')+';">'+(on?'Assigned ✓':'Assign')+'</span></div>';
+          }).join('')
+          : '<span style="font:400 14px/1.6 Figtree,sans-serif;color:oklch(0.55 0.015 250);">No drivers yet — add one on the <a href="../team/">Team</a> page (promote an account to driver by email).</span>')+
+        '</div>'+
+        (b.driverEmail ? '<button class="btn2" id="unassign" style="padding:11px;font-size:14px;">Unassign</button>' : '')+
+        '<span style="font:400 12.5px/1.55 Figtree,sans-serif;color:oklch(0.58 0.015 250);">The ride appears in the driver\'s console the moment you assign it. (Text alerts hook in here when SMS is connected — see README.)</span>'+
+      '</div>'+
+
+      '<div class="card" style="gap:0;padding:0;overflow:hidden;">'+
+        '<div style="padding:16px 22px;background:oklch(0.96 0.018 237);display:flex;flex-direction:column;gap:3px;">'+
+          '<span style="font:600 11px/1 Barlow,sans-serif;letter-spacing:0.16em;text-transform:uppercase;color:oklch(0.48 0.09 240);">Fare</span>'+
+          '<span style="font:700 34px/1.05 \'Barlow Condensed\',sans-serif;color:oklch(0.30 0.04 245);">'+ISV.money(b.fare)+'</span></div>'+
+        '<div style="padding:16px 22px;display:flex;flex-direction:column;gap:10px;background:#fff;">'+
+          f.rows.map(function(r){ return '<div style="display:flex;align-items:baseline;justify-content:space-between;gap:14px;">'+
+            '<span style="font:400 14px/1.4 Figtree,sans-serif;color:oklch(0.52 0.015 250);">'+r.label+'</span>'+
+            '<span style="font:600 14px/1.4 Figtree,sans-serif;color:oklch(0.32 0.02 250);">'+r.amount+'</span></div>'; }).join('')+
+          '<div style="height:1px;background:oklch(0.93 0.01 250);"></div>'+
+          '<span style="font:400 13px/1.5 Figtree,sans-serif;color:oklch(0.55 0.015 250);">Private pay — collected at pickup. (Online payment page is scaffolded, not live.)</span>'+
+        '</div></div>'+
+    '</div>'+
+  '</div>';
+
+  document.querySelectorAll('[data-assign]').forEach(function(el){
+    el.onclick = function(){
+      var email = this.getAttribute('data-assign');
+      var d = ISV.auth.accounts().find(function(u){ return u.email === email; });
+      ISV.book.update(id, { driverEmail: email, status: "Assigned" }, "Assigned to " + (d ? d.name : email) + " by " + me.name);
+      render();
+    };
+  });
+  var un = document.getElementById('unassign');
+  if (un) un.onclick = function(){ ISV.book.update(id, { driverEmail: null, status: "New" }, "Driver unassigned by " + me.name); render(); };
+  var md = document.getElementById('markDone');
+  if (md) md.onclick = function(){ ISV.book.update(id, { status: "Completed" }, "Marked completed by dispatch"); render(); };
+  var cr = document.getElementById('cancelRide');
+  if (cr) cr.onclick = function(){ if (confirm("Cancel this ride?")) { ISV.book.update(id, { status: "Cancelled" }, "Cancelled by dispatch"); render(); } };
+  var ro = document.getElementById('reopenRide');
+  if (ro) ro.onclick = function(){ ISV.book.update(id, { status: b.driverEmail ? "Assigned" : "New" }, "Reopened by dispatch"); render(); };
+}
+
+render();
+setInterval(render, 4000);
+}
+</script>
+</body>
+</html>
