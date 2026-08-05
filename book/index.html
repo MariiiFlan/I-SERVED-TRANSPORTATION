@@ -5,6 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Book a Ride — I Served Transportation</title>
 <link rel="stylesheet" href="../assets/base.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  .addr-wrap { position: relative; }
+  .addr-sug { position:absolute; top:100%; left:0; right:0; z-index:30; background:#fff; border:1px solid oklch(0.88 0.02 250); border-radius:10px; margin-top:4px; overflow:hidden; box-shadow:0 10px 24px -12px oklch(0.4 0.05 245 / 0.45); }
+  .addr-sug div { padding:11px 14px; font:400 14px/1.4 Figtree,sans-serif; color:oklch(0.35 0.02 250); cursor:pointer; border-bottom:1px solid oklch(0.96 0.006 250); }
+  .addr-sug div:hover { background:oklch(0.97 0.012 237); }
+  #map { height:280px; border-radius:12px; border:1px solid oklch(0.90 0.015 250); display:none; }
+  .leaflet-container { font-family: Figtree, sans-serif; }
+</style>
 </head>
 <body>
 <div id="hdr"></div>
@@ -26,14 +35,17 @@
 
       <div class="card">
         <h2 style="margin:0;font:700 15px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.45 0.02 250);">2 · Where &amp; when</h2>
-        <div style="display:flex;flex-direction:column;gap:7px;">
+        <div style="display:flex;flex-direction:column;gap:7px;" class="addr-wrap">
           <label class="lbl">Pickup address</label>
-          <input id="pickup" class="inp" placeholder="35660 Carissa Ct, Wildomar, CA">
+          <input id="pickup" class="inp" placeholder="35660 Carissa Ct, Wildomar, CA" autocomplete="off">
+          <div id="pickupSug" class="addr-sug" style="display:none;"></div>
         </div>
-        <div style="display:flex;flex-direction:column;gap:7px;">
+        <div style="display:flex;flex-direction:column;gap:7px;" class="addr-wrap">
           <label class="lbl">Destination</label>
-          <input id="dropoff" class="inp" placeholder="Clinic, hospital, or facility name">
+          <input id="dropoff" class="inp" placeholder="Clinic, hospital, or facility name" autocomplete="off">
+          <div id="dropoffSug" class="addr-sug" style="display:none;"></div>
         </div>
+        <div id="map"></div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
           <div style="display:flex;flex-direction:column;gap:7px;">
             <label class="lbl">Date</label>
@@ -46,11 +58,11 @@
         </div>
         <div style="display:flex;flex-direction:column;gap:10px;padding-top:4px;">
           <div style="display:flex;align-items:baseline;justify-content:space-between;">
-            <label class="lbl">Approximate distance</label>
+            <label class="lbl" id="distanceTitle">Approximate distance</label>
             <span id="milesLabel" style="font:700 17px/1 'Barlow Condensed',sans-serif;letter-spacing:0.02em;color:oklch(0.50 0.115 238);"></span>
           </div>
-          <input id="miles" type="range" min="2" max="80" step="1" value="12" style="width:100%;">
-          <span style="font:400 13px/1.4 Figtree,sans-serif;color:oklch(0.58 0.015 250);">Drag to estimate one-way mileage — dispatch confirms the exact figure.</span>
+          <input id="miles" type="range" min="2" max="200" step="1" value="12" style="width:100%;">
+          <span id="distanceHint" style="font:400 13px/1.4 Figtree,sans-serif;color:oklch(0.58 0.015 250);">Drag to estimate one-way mileage — or pick both addresses from the suggestions and the route is measured for you.</span>
         </div>
       </div>
 
@@ -103,7 +115,7 @@
             <span style="font:600 15px/1.4 Figtree,sans-serif;color:oklch(0.30 0.02 250);">Estimated total</span>
             <span id="totalSmall" style="font:700 17px/1.4 Figtree,sans-serif;color:oklch(0.30 0.02 250);"></span>
           </div>
-          <button class="btn" id="submit" style="margin-top:6px;">Request this ride</button>
+          <button class="btn" id="submit" style="margin-top:6px;">Continue to checkout</button>
           <span id="formErr" class="err"></span>
           <span style="font:400 12px/1.5 Figtree,sans-serif;color:oklch(0.58 0.015 250);text-wrap:pretty;">Estimate only — final fare is confirmed by dispatch before pickup. Nothing is charged today.</span>
         </div>
@@ -118,6 +130,7 @@
 
 <div id="ftr"></div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
@@ -131,7 +144,7 @@ document.getElementById('ftr').innerHTML = ISV.footer("../");
 var facTel = document.getElementById('facTel');
 facTel.textContent = CONFIG.PHONE_DISPLAY; facTel.href = 'tel:' + CONFIG.PHONE_TEL;
 
-var S = { tripType:"oneway", vehicle:"sedan", addOns:{wait:false,assist:false,afterHours:false}, miles:12 };
+var S = { tripType:"oneway", vehicle:"sedan", addOns:{wait:false,assist:false,afterHours:false}, miles:12, coords:{pickup:null,dropoff:null}, autoMiles:null };
 
 // pull draft from home widget
 try {
@@ -200,8 +213,18 @@ function render(){
 }
 
 function calc(){
-  S.miles = +document.getElementById('miles').value;
-  document.getElementById('milesLabel').textContent = S.miles + " mi one way";
+  if (S.autoMiles != null){
+    S.miles = S.autoMiles;
+    document.getElementById('milesLabel').textContent = S.miles + " mi one way · measured";
+    document.getElementById('miles').style.display = "none";
+    document.getElementById('distanceTitle').textContent = "Driving distance";
+    document.getElementById('distanceHint').innerHTML = 'Measured along the driving route. <a href="#" id="manualMiles">Adjust manually</a>';
+    var mm = document.getElementById('manualMiles');
+    if (mm) mm.onclick = function(e){ e.preventDefault(); S.autoMiles = null; document.getElementById('miles').style.display = ""; document.getElementById('distanceTitle').textContent = "Approximate distance"; document.getElementById('distanceHint').textContent = "Drag to estimate one-way mileage — dispatch confirms the exact figure."; calc(); };
+  } else {
+    S.miles = +document.getElementById('miles').value;
+    document.getElementById('milesLabel').textContent = S.miles + " mi one way";
+  }
   var f = ISV.fare(S);
   document.getElementById('totalBig').textContent = ISV.money(f.total);
   document.getElementById('totalSmall').textContent = ISV.money(f.total);
@@ -224,9 +247,8 @@ document.getElementById('submit').onclick = function(){
   if (!pickup || !dropoff) { err.textContent = "Add a pickup and destination."; return; }
   if (!date) { err.textContent = "Pick a date."; return; }
   if (!name || !phone) { err.textContent = "Add a name and phone so dispatch can confirm."; return; }
-  var btn = this; btn.disabled = true; btn.textContent = "Sending…";
   var f = ISV.fare(S);
-  ISV.book.addAsync({
+  var draft = {
     name:name, phone:phone,
     userEmail: me ? me.email : null,
     pickup:pickup, dropoff:dropoff,
@@ -235,13 +257,119 @@ document.getElementById('submit').onclick = function(){
     pax:document.getElementById('pax').value,
     notes:document.getElementById('notes').value.trim(),
     miles:f.miles, fare:+f.total.toFixed(2)
-  }).then(function(b){
-    location.href = '../confirm/?id=' + b.id;
-  }).catch(function(e){
-    err.textContent = "The booking did NOT save: " + e;
-    btn.disabled = false; btn.textContent = "Request this ride";
-  });
+  };
+  if (S.coords.pickup) draft.pickupCoords = S.coords.pickup;
+  if (S.coords.dropoff) draft.dropoffCoords = S.coords.dropoff;
+  if (S.autoMiles != null) draft.routedMiles = true;
+  if (me && me.role === "owner"){ // dispatch books directly — no checkout gate
+    var btn = this; btn.disabled = true; btn.textContent = "Saving…";
+    draft.log = [{ t: Date.now(), text: "Created by dispatch (" + me.name + ") — estimate " + ISV.money(draft.fare) }];
+    ISV.book.addAsync(draft).then(function(b){
+      location.href = '../confirm/?id=' + b.id;
+    }).catch(function(e){
+      err.textContent = "The booking did NOT save: " + e;
+      btn.disabled = false; btn.textContent = "Continue to checkout";
+    });
+    return;
+  }
+  try { sessionStorage.setItem('isv_checkout_draft', JSON.stringify(draft)); } catch(e){}
+  location.href = '../checkout/';
 };
+
+/* ---------- map, address suggestions, measured route (OpenStreetMap - no keys) ---------- */
+var map = null, markers = { pickup:null, dropoff:null }, routeLine = null;
+function ensureMap(){
+  if (map || !window.L) return;
+  map = L.map('map', { scrollWheelZoom:false }).setView([33.6, -117.25], 10);
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors', maxZoom: 19
+  }).addTo(map);
+}
+function showMap(){
+  var el = document.getElementById('map');
+  if (el.style.display !== "block"){ el.style.display = "block"; }
+  ensureMap();
+  setTimeout(function(){ if (map) map.invalidateSize(); }, 60);
+}
+function setMarker(which, lat, lon, label){
+  showMap();
+  if (!map) return;
+  if (markers[which]) map.removeLayer(markers[which]);
+  markers[which] = L.marker([lat, lon]).addTo(map).bindPopup(label);
+  var pts = [];
+  if (markers.pickup) pts.push(markers.pickup.getLatLng());
+  if (markers.dropoff) pts.push(markers.dropoff.getLatLng());
+  if (pts.length === 1) map.setView(pts[0], 13);
+  else if (pts.length === 2) map.fitBounds(L.latLngBounds(pts).pad(0.25));
+}
+function drawRoute(coordsLatLng){
+  if (!map) return;
+  if (routeLine) map.removeLayer(routeLine);
+  routeLine = L.polyline(coordsLatLng, { color: '#3d7ab5', weight: 5, opacity: 0.85 }).addTo(map);
+}
+function routeMiles(){
+  var p = S.coords.pickup, d = S.coords.dropoff;
+  if (!p || !d) return;
+  document.getElementById('distanceHint').textContent = "Measuring the driving route…";
+  fetch('https://router.project-osrm.org/route/v1/driving/' + p.lon + ',' + p.lat + ';' + d.lon + ',' + d.lat + '?overview=full&geometries=geojson')
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      if (!j.routes || !j.routes[0]) throw 0;
+      var route = j.routes[0];
+      S.autoMiles = Math.max(1, Math.round(route.distance / 1609.34));
+      drawRoute(route.geometry.coordinates.map(function(c){ return [c[1], c[0]]; }));
+      calc();
+    })
+    .catch(function(){
+      // routing service busy - fall back to straight-line distance x 1.3 road factor
+      var R = 3958.8, toR = Math.PI/180;
+      var dLat = (d.lat - p.lat)*toR, dLon = (d.lon - p.lon)*toR;
+      var a = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(p.lat*toR)*Math.cos(d.lat*toR)*Math.sin(dLon/2)*Math.sin(dLon/2);
+      var straight = 2*R*Math.asin(Math.sqrt(a));
+      S.autoMiles = Math.max(1, Math.round(straight * 1.3));
+      calc();
+    });
+}
+function wireAddress(which){
+  var input = document.getElementById(which);
+  var sug = document.getElementById(which + 'Sug');
+  var timer = null;
+  input.addEventListener('input', function(){
+    S.coords[which] = null; S.autoMiles = null;
+    if (routeLine && map){ map.removeLayer(routeLine); routeLine = null; }
+    calc();
+    clearTimeout(timer);
+    var q = input.value.trim();
+    if (q.length < 3){ sug.style.display = "none"; return; }
+    timer = setTimeout(function(){
+      fetch('https://nominatim.openstreetmap.org/search?format=json&limit=5&countrycodes=us&addressdetails=0&viewbox=-118.6,34.5,-116.1,33.2&q=' + encodeURIComponent(q))
+        .then(function(r){ return r.json(); })
+        .then(function(list){
+          if (!list.length){ sug.style.display = "none"; return; }
+          sug.innerHTML = list.map(function(x, i){
+            return '<div data-i="'+i+'">'+ISV.esc(x.display_name)+'</div>';
+          }).join('');
+          sug.style.display = "block";
+          Array.prototype.forEach.call(sug.children, function(el){
+            el.onclick = function(){
+              var x = list[+this.getAttribute('data-i')];
+              input.value = x.display_name;
+              S.coords[which] = { lat: +x.lat, lon: +x.lon };
+              sug.style.display = "none";
+              setMarker(which, +x.lat, +x.lon, which === 'pickup' ? 'Pickup' : 'Destination');
+              routeMiles();
+            };
+          });
+        })
+        .catch(function(){ sug.style.display = "none"; });
+    }, 450);
+  });
+  document.addEventListener('click', function(e){
+    if (!sug.contains(e.target) && e.target !== input) sug.style.display = "none";
+  });
+}
+wireAddress('pickup');
+wireAddress('dropoff');
 
 render();
 

@@ -351,7 +351,23 @@
   /* ---------------- bookings ---------------- */
   function newId() { return "IST-" + Math.floor(100000 + Math.random() * 899999); }
   var BOOK = {
-    all: function () { return BOOKINGS.slice(); },
+    all: function () { return BOOKINGS.filter(function (b) { return !b.deleted; }); },
+    trash: function () { return BOOKINGS.filter(function (b) { return b.deleted; }); },
+    moveToTrash: function (id, by) { BOOK.update(id, { deleted: true }, "Moved to trash" + (by ? " by " + by : "")); },
+    restore: function (id, by) { BOOK.update(id, { deleted: false }, "Restored from trash" + (by ? " by " + by : "")); },
+    clearTrash: function () { // permanently delete everything in the trash
+      var doomed = BOOK.trash().map(function (b) { return b.id; });
+      BOOKINGS = BOOKINGS.filter(function (b) { return !b.deleted; });
+      fireChange();
+      var chain = Promise.resolve();
+      doomed.forEach(function (id) {
+        chain = chain.then(function () {
+          return withTimeout(db.collection("bookings").doc(id).delete(), 8000)
+            .catch(function (e) { if (e && e.code === "timeout") return restDelete("bookings", id); throw e; });
+        });
+      });
+      return chain.catch(function (e) { alert("Couldn't clear the trash: " + friendly(e)); });
+    },
     byId: function (id) {
       var b = BOOKINGS.find(function (x) { return x.id === id; });
       if (b) return b;
@@ -489,15 +505,14 @@
       '<nav style="display:flex;align-items:center;gap:22px;flex-wrap:wrap;">' + acct +
       '<span style="font:600 15px/1 Figtree,sans-serif;color:oklch(0.34 0.02 250);">' + C.PHONE_DISPLAY + '</span>' +
       '<a href="' + root + 'book/" style="padding:12px 20px;border-radius:8px;background:oklch(0.62 0.115 237);color:#fff;font:600 15px/1 Figtree,sans-serif;">Book now</a>' +
+      (ME ? '<button onclick="ISV.auth.signOutTo(\'' + root + '\')" style="cursor:pointer;padding:11px 16px;border-radius:8px;background:none;border:1px solid oklch(0.88 0.02 250);color:oklch(0.42 0.02 250);font:600 14px/1 Figtree,sans-serif;">Sign out</button>' : '') +
       '</nav></div></header>';
   }
 
   function footer(root) {
     return '<footer style="border-top:1px solid oklch(0.93 0.01 250);background:#fff;">' +
       '<div style="max-width:1180px;margin:0 auto;padding:48px 32px;display:flex;align-items:flex-start;justify-content:space-between;gap:40px;flex-wrap:wrap;">' +
-      '<div style="display:flex;flex-direction:column;gap:12px;max-width:320px;">' +
       '<div style="display:flex;align-items:center;gap:11px;">' + logo(28) + '</div>' +
-      '<span style="font:400 14px/1.6 Figtree,sans-serif;color:oklch(0.55 0.015 250);">Veteran-owned non-emergency medical transportation. Wildomar, CA 92595 · serving Riverside County.</span></div>' +
       '<div style="display:flex;gap:56px;flex-wrap:wrap;">' +
       '<div style="display:flex;flex-direction:column;gap:10px;"><span style="font:600 11px/1 Barlow,sans-serif;letter-spacing:0.16em;text-transform:uppercase;color:oklch(0.62 0.11 237);">Contact</span>' +
       '<a href="tel:' + C.PHONE_TEL + '" style="font:500 15px/1 Figtree,sans-serif;">' + C.PHONE_DISPLAY + '</a>' +
@@ -505,9 +520,6 @@
       '<div style="display:flex;flex-direction:column;gap:10px;"><span style="font:600 11px/1 Barlow,sans-serif;letter-spacing:0.16em;text-transform:uppercase;color:oklch(0.62 0.11 237);">Hours</span>' +
       '<span style="font:500 15px/1 Figtree,sans-serif;color:oklch(0.40 0.015 250);">Mon–Sat, 5am–9pm</span>' +
       '<span style="font:500 15px/1 Figtree,sans-serif;color:oklch(0.40 0.015 250);">Sunday by appointment</span></div>' +
-      '<div style="display:flex;flex-direction:column;gap:10px;"><span style="font:600 11px/1 Barlow,sans-serif;letter-spacing:0.16em;text-transform:uppercase;color:oklch(0.62 0.11 237);">Team</span>' +
-      '<a href="' + root + 'driver/" style="font:500 15px/1 Figtree,sans-serif;">Driver sign-in</a>' +
-      '<a href="' + root + 'owner/" style="font:500 15px/1 Figtree,sans-serif;">Dispatch sign-in</a></div>' +
       '</div></div>' +
       '<div style="border-top:1px solid oklch(0.96 0.006 250);"><div style="max-width:1180px;margin:0 auto;padding:20px 32px;font:400 13px/1 Figtree,sans-serif;color:oklch(0.62 0.012 250);">© 2026 I Served Transportation LLC. All rights reserved.</div></div></footer>';
   }

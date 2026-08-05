@@ -36,6 +36,12 @@ window.CONFIG = {
   ADDON_ASSIST: 12,    // door-through-door assistance
   ADDON_AFTERHOURS: 25,// pickup before 6am / after 8pm
 
+  // ---------------- CHECKOUT / PROMO ----------------
+  // Online card payments aren't wired yet, so rides only reach the
+  // dashboard through checkout with a valid promo code (testing) —
+  // or by phone. Add/remove codes freely:
+  PROMO_CODES: ["MARIMACHI06"],
+
   // The FIRST account created on the site becomes the owner automatically.
   // After that, grant owner/driver access from Owner console -> Team.
   OWNER_EMAILS: []

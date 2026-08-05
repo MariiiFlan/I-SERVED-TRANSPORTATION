@@ -33,6 +33,68 @@ document.getElementById('side').innerHTML = ISV.sidebar("../../", "dash", "Dispa
 
 function fmtLogTime(t){ return new Date(t).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}); }
 
+var EDITING = false;
+
+function editForm(b){
+  function inp(id, label, val, type, extra){
+    return '<div style="display:flex;flex-direction:column;gap:7px;'+(extra||'')+'">'+
+      '<label class="lbl">'+label+'</label>'+
+      '<input id="'+id+'" class="inp" type="'+(type||"text")+'" value="'+ISV.esc(val==null?"":val)+'">'+
+      '</div>';
+  }
+  var a = b.addOns || {};
+  return '<div class="card" style="gap:18px;">'+
+    '<span style="font:700 14px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.45 0.02 250);">Edit trip — everything is changeable</span>'+
+    '<div class="grid2" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">'+
+      inp('eName','Passenger name', b.name)+ inp('ePhone','Phone', b.phone)+
+    '</div>'+
+    inp('ePickup','Pickup address', b.pickup)+
+    inp('eDropoff','Destination', b.dropoff)+
+    '<div class="grid3" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;">'+
+      inp('eDate','Date', b.date, 'date')+ inp('eTime','Appointment time', b.time, 'time')+ inp('eMiles','Miles (total)', b.miles, 'number')+
+    '</div>'+
+    '<div class="grid3" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;">'+
+      '<div style="display:flex;flex-direction:column;gap:7px;"><label class="lbl">Trip type</label>'+
+      '<select id="eTrip" class="inp"><option value="oneway"'+(b.tripType!=="round"?" selected":"")+'>One way</option><option value="round"'+(b.tripType==="round"?" selected":"")+'>Round trip</option></select></div>'+
+      '<div style="display:flex;flex-direction:column;gap:7px;"><label class="lbl">Vehicle</label>'+
+      '<select id="eVehicle" class="inp"><option value="sedan"'+(b.vehicle==="sedan"?" selected":"")+'>Sedan</option><option value="suv"'+(b.vehicle==="suv"?" selected":"")+'>SUV</option><option value="wav"'+(b.vehicle==="wav"?" selected":"")+'>Wheelchair van</option></select></div>'+
+      '<div style="display:flex;flex-direction:column;gap:7px;"><label class="lbl">Riding along</label>'+
+      '<select id="ePax" class="inp">'+[1,2,3,4].map(function(n){ return '<option value="'+n+'"'+(String(b.pax)===String(n)?" selected":"")+'>'+(n===1?"Just the passenger":"Passenger + "+(n-1))+'</option>'; }).join('')+'</select></div>'+
+    '</div>'+
+    '<div style="display:flex;gap:18px;flex-wrap:wrap;">'+
+      [['wait','Driver waits'],['assist','Door-through-door'],['afterHours','Before 6am / after 8pm']].map(function(x){
+        return '<label style="display:flex;align-items:center;gap:8px;font:500 14px/1 Figtree,sans-serif;color:oklch(0.35 0.02 250);cursor:pointer;">'+
+          '<input type="checkbox" id="eAdd_'+x[0]+'"'+(a[x[0]]?" checked":"")+' style="width:17px;height:17px;accent-color:oklch(0.62 0.115 237);">'+x[1]+'</label>';
+      }).join('')+
+    '</div>'+
+    '<div style="display:flex;flex-direction:column;gap:7px;"><label class="lbl">Driver notes</label>'+
+    '<textarea id="eNotes" class="inp" rows="2" style="resize:vertical;">'+ISV.esc(b.notes||"")+'</textarea></div>'+
+    '<div style="display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;">'+
+      inp('eFare','Fare ($)', b.fare, 'number', 'max-width:160px;')+
+      '<button class="btn2" id="eRecalc" style="padding:13px 18px;font-size:14px;">Recalculate from details</button>'+
+    '</div>'+
+    '<div style="display:flex;gap:12px;">'+
+      '<button class="btn" id="eSave" style="padding:14px 26px;font-size:15px;">Save changes</button>'+
+      '<button class="btn2" id="eCancel" style="padding:14px 22px;font-size:15px;">Cancel</button>'+
+    '</div>'+
+  '</div>';
+}
+
+function readEditForm(){
+  var v = function(id){ return document.getElementById(id).value; };
+  var trip = v('eTrip');
+  return {
+    name: v('eName').trim(), phone: v('ePhone').trim(),
+    pickup: v('ePickup').trim(), dropoff: v('eDropoff').trim(),
+    date: v('eDate'), time: v('eTime'),
+    tripType: trip, vehicle: v('eVehicle'), pax: v('ePax'),
+    miles: parseFloat(v('eMiles')) || 0,
+    addOns: { wait: document.getElementById('eAdd_wait').checked, assist: document.getElementById('eAdd_assist').checked, afterHours: document.getElementById('eAdd_afterHours').checked },
+    notes: v('eNotes').trim(),
+    fare: parseFloat(v('eFare')) || 0
+  };
+}
+
 function render(){
   var b = ISV.book.byId(id);
   var m = document.getElementById('main');
@@ -49,6 +111,7 @@ function render(){
         '<h2 style="margin:0;font:700 34px/1.05 \'Barlow Condensed\',sans-serif;text-transform:uppercase;letter-spacing:0.01em;">'+b.id+'</h2>'+ISV.pill(b.status)+
       '</div></div>'+
     '<div style="display:flex;gap:10px;flex-wrap:wrap;">'+
+      '<button class="btn2" id="editTrip" style="padding:12px 18px;font-size:14px;">'+(EDITING?'Cancel editing':'Edit trip')+'</button>'+
       (b.status !== "Completed" && b.status !== "Cancelled" ? '<button class="btn2" id="markDone" style="padding:12px 18px;font-size:14px;">Mark completed</button>' : '')+
       (b.status !== "Cancelled" ? '<button class="btn2" id="cancelRide" style="padding:12px 18px;font-size:14px;color:oklch(0.50 0.15 25);">Cancel ride</button>'
                                 : '<button class="btn2" id="reopenRide" style="padding:12px 18px;font-size:14px;">Reopen</button>')+
@@ -56,7 +119,7 @@ function render(){
 
   '<div class="booking-grid" style="display:grid;grid-template-columns:1.15fr 0.85fr;gap:20px;align-items:start;">'+
     '<div style="display:flex;flex-direction:column;gap:20px;">'+
-
+      (EDITING ? editForm(b) :
       '<div class="card" style="gap:0;padding:0;overflow:hidden;">'+
         '<div style="padding:16px 24px;background:oklch(0.985 0.008 237);border-bottom:1px solid oklch(0.93 0.01 250);font:700 14px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.45 0.02 250);">Trip</div>'+
         '<div style="padding:8px 24px 16px;">'+
@@ -80,6 +143,8 @@ function render(){
           '</div>'+
         '</div></div>'+
 
+      ''
+      )+
       '<div class="card" style="gap:0;padding:0;overflow:hidden;">'+
         '<div style="padding:16px 24px;background:oklch(0.985 0.008 237);border-bottom:1px solid oklch(0.93 0.01 250);font:700 14px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.45 0.02 250);">Activity</div>'+
         '<div style="padding:12px 24px 18px;display:flex;flex-direction:column;gap:12px;">'+
@@ -126,6 +191,24 @@ function render(){
     '</div>'+
   '</div>';
 
+  document.getElementById('editTrip').onclick = function(){ EDITING = !EDITING; render(); };
+  if (EDITING){
+    document.getElementById('eCancel').onclick = function(){ EDITING = false; render(); };
+    document.getElementById('eRecalc').onclick = function(){
+      var f2 = readEditForm();
+      // form miles are TOTAL; fare engine takes one-way and doubles round trips
+      var oneWay = f2.tripType === "round" ? f2.miles / 2 : f2.miles;
+      var calc = ISV.fare({ tripType: f2.tripType, miles: oneWay, vehicle: f2.vehicle, addOns: f2.addOns });
+      document.getElementById('eFare').value = calc.total.toFixed(2);
+    };
+    document.getElementById('eSave').onclick = function(){
+      var f2 = readEditForm();
+      if (!f2.pickup || !f2.dropoff || !f2.name){ alert("Keep at least a name, pickup, and destination."); return; }
+      ISV.book.update(id, f2, "Trip details edited by " + me.name);
+      EDITING = false;
+      render();
+    };
+  }
   document.querySelectorAll('[data-assign]').forEach(function(el){
     el.onclick = function(){
       var email = this.getAttribute('data-assign');
@@ -145,8 +228,8 @@ function render(){
 }
 
 render();
-ISV.onChange(render);
-setInterval(render, 4000);
+ISV.onChange(function(){ if (!EDITING) render(); });
+setInterval(function(){ if (!EDITING) render(); }, 4000);
 }
 
 });

@@ -35,9 +35,13 @@
       <div id="chips" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
     </div>
 
+    <div id="trashBar" style="display:none;align-items:center;justify-content:space-between;gap:14px;padding:14px 18px;border:1px solid oklch(0.90 0.03 25);background:oklch(0.98 0.008 25);border-radius:12px;flex-wrap:wrap;">
+      <span style="font:500 14px/1.5 Figtree,sans-serif;color:oklch(0.45 0.08 25);">Rides in the trash are hidden from every console. Clearing the trash deletes them permanently — there's no undo after that.</span>
+      <button class="btn2" id="clearTrash" style="padding:11px 18px;font-size:14px;color:oklch(0.50 0.15 25);border-color:oklch(0.85 0.05 25);">Clear trash permanently</button>
+    </div>
     <div style="background:#fff;border:1px solid oklch(0.92 0.012 250);border-radius:14px;overflow:auto;">
       <table class="tbl" style="min-width:860px;">
-        <thead><tr><th>Request</th><th>Passenger</th><th>Trip</th><th>Pickup</th><th>Driver</th><th>Fare</th><th>Status</th></tr></thead>
+        <thead><tr><th>Request</th><th>Passenger</th><th>Trip</th><th>Pickup</th><th>Driver</th><th>Fare</th><th>Status</th><th></th></tr></thead>
         <tbody id="rows"></tbody>
       </table>
       <div id="emptyState" style="display:none;padding:44px;text-align:center;font:400 15px/1.7 Figtree,sans-serif;color:oklch(0.55 0.015 250);">
@@ -73,7 +77,7 @@ function sidebar(){
 var now = new Date();
 document.getElementById('today').textContent = now.toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
 
-var FILTERS = ["All","New","Assigned","En route","Completed","Cancelled"];
+var FILTERS = ["All","New","Assigned","En route","Completed","Cancelled","Trash"];
 var fStatus = "All";
 function bucket(s){ // group live statuses into mockup buckets
   if (s === "Accepted") return "Assigned";
@@ -107,8 +111,10 @@ function stats(){
 }
 
 function chips(){
+  var nTrash = ISV.book.trash().length;
   document.getElementById('chips').innerHTML = FILTERS.map(function(f){
-    return '<button class="chip'+(fStatus===f?' on':'')+'" data-f="'+f+'">'+f+'</button>';
+    var label = f === "Trash" ? "Trash ("+nTrash+")" : f;
+    return '<button class="chip'+(fStatus===f?' on':'')+'" data-f="'+f+'" '+(f==="Trash"?'style="color:oklch(0.50 0.15 25);"':'')+'>'+label+'</button>';
   }).join('');
   document.querySelectorAll('[data-f]').forEach(function(el){ el.onclick=function(){ fStatus=this.getAttribute('data-f'); chips(); rows(); }; });
 }
@@ -131,9 +137,10 @@ function driverName(email){
 function rows(){
   var q = (document.getElementById('search').value || "").toLowerCase();
   var fd = document.getElementById('fDriver').value;
-  var all = ISV.book.all().slice().sort(function(a,b){ return (b.date+(b.time||'')) < (a.date+(a.time||'')) ? -1 : 1; });
+  var inTrash = fStatus === "Trash";
+  var all = (inTrash ? ISV.book.trash() : ISV.book.all()).slice().sort(function(a,b){ return (b.date+(b.time||'')) < (a.date+(a.time||'')) ? -1 : 1; });
   var list = all.filter(function(b){
-    if (fStatus !== "All" && bucket(b.status) !== fStatus) return false;
+    if (!inTrash && fStatus !== "All" && bucket(b.status) !== fStatus) return false;
     if (fd && b.driverEmail !== fd) return false;
     if (q){
       var hay = (b.id+" "+b.name+" "+b.phone+" "+b.pickup+" "+b.dropoff).toLowerCase();
@@ -141,6 +148,7 @@ function rows(){
     }
     return true;
   });
+  document.getElementById('trashBar').style.display = inTrash ? "flex" : "none";
   document.getElementById('emptyState').style.display = ISV.book.all().length ? "none" : "block";
   document.getElementById('rows').innerHTML = list.map(function(b){
     var dn = driverName(b.driverEmail);
@@ -155,13 +163,30 @@ function rows(){
       '<td>'+(dn ? '<span style="font:500 13.5px/1.4 Figtree,sans-serif;">'+ISV.esc(dn)+'</span>'
                  : '<span style="font:600 12px/1 Figtree,sans-serif;color:oklch(0.55 0.13 60);background:oklch(0.97 0.03 85);padding:5px 10px;border-radius:999px;white-space:nowrap;">Assign →</span>')+'</td>'+
       '<td style="font:600 14px/1.4 Figtree,sans-serif;white-space:nowrap;">'+ISV.money(b.fare)+'</td>'+
-      '<td>'+ISV.pill(b.status)+'</td></tr>';
+      '<td>'+ISV.pill(b.status)+'</td>'+
+      '<td>'+(inTrash
+        ? '<button class="chip" data-restore="'+b.id+'">Restore</button>'
+        : '<button data-trash="'+b.id+'" title="Move to trash" style="cursor:pointer;border:0;background:none;font-size:16px;line-height:1;padding:6px;border-radius:8px;color:oklch(0.55 0.10 25);">🗑</button>')+'</td></tr>';
   }).join('');
-  document.getElementById('countLine').textContent = list.length + " of " + all.length + " bookings";
+  document.getElementById('countLine').textContent = list.length + " of " + all.length + (inTrash ? " in trash" : " bookings");
+  document.querySelectorAll('[data-trash]').forEach(function(el){
+    el.onclick = function(ev){ ev.stopPropagation(); ISV.book.moveToTrash(this.getAttribute('data-trash'), me.name); refresh(); };
+  });
+  document.querySelectorAll('[data-restore]').forEach(function(el){
+    el.onclick = function(ev){ ev.stopPropagation(); ISV.book.restore(this.getAttribute('data-restore'), me.name); refresh(); };
+  });
 }
 
 document.getElementById('search').addEventListener('input', rows);
 document.getElementById('fDriver').addEventListener('change', rows);
+
+document.getElementById('clearTrash').onclick = function(){
+  var n = ISV.book.trash().length;
+  if (!n) return;
+  if (confirm("Permanently delete " + n + " ride" + (n===1?"":"s") + " from the trash? This cannot be undone.")){
+    ISV.book.clearTrash().then(refresh);
+  }
+};
 
 document.getElementById('seed').onclick = function(e){
   e.preventDefault();

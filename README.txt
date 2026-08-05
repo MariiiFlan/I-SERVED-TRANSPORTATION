@@ -85,6 +85,37 @@ If you can export a fuller report from Saferide (with names/addresses),
 the importer will pick all of it up automatically.
 
 
+CHECKOUT + PROMO CODE (how bookings reach the dashboard now)
+--------------------------------------------------------------
+The public booking form no longer sends rides straight to the
+dashboard. Flow is now: Book -> Checkout -> dispatch.
+* Card payment on the checkout page is scaffolded but OFF until
+  Stripe/PayPal is wired — the page says to call instead.
+* Promo code MARIMACHI06 unlocks checkout with no charge (for
+  testing). Add/remove codes in assets/config.js -> PROMO_CODES.
+* EXCEPTION: when the OWNER is signed in and books (e.g. "New
+  booking" on the dashboard for phone-in clients), it skips
+  checkout and saves directly.
+
+TRASH + EDITING (owner dashboard)
+----------------------------------
+* Every row has a trash can — moves the ride to Trash (hidden from
+  all consoles, including drivers and clients).
+* The "Trash (n)" chip shows what's in there, with Restore per ride
+  and "Clear trash permanently" (no undo).
+* Open any booking -> "Edit trip" lets you change EVERYTHING: name,
+  phone, addresses, date/time, trip type, vehicle, miles, add-ons,
+  notes, and the fare ("Recalculate from details" refigures it).
+
+MAP + MEASURED MILES (booking page)
+------------------------------------
+Start typing an address and pick from the suggestions — a map
+appears with pins, and when both ends are chosen the actual driving
+route is measured and the mileage fills itself in (with an "adjust
+manually" fallback). Free OpenStreetMap services, no API keys or
+billing. If you ever want Google's data instead, that swap is easy
+later.
+
 CUSTOM DOMAIN LATER?
 --------------------
 One extra step when you get it: Firebase console -> Authentication ->

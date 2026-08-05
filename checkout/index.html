@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Checkout — I Served Transportation</title>
+<link rel="stylesheet" href="../assets/base.css">
+</head>
+<body>
+<div id="hdr"></div>
+
+<main style="max-width:1000px;margin:0 auto;padding:56px 32px 90px;">
+  <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:32px;">
+    <span class="kicker">Almost there</span>
+    <h1 style="margin:0;font:700 46px/1.05 'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:0.01em;">Checkout</h1>
+    <p style="margin:0;font:400 17px/1.6 Figtree,sans-serif;color:oklch(0.50 0.015 250);">Your ride isn't requested yet — it's sent to dispatch when checkout is completed.</p>
+  </div>
+
+  <div class="booking-grid" style="display:grid;grid-template-columns:1fr 0.85fr;gap:28px;align-items:start;">
+
+    <!-- left: summary -->
+    <div style="display:flex;flex-direction:column;gap:20px;">
+      <div style="border:1px solid oklch(0.92 0.012 250);border-radius:16px;overflow:hidden;">
+        <div style="padding:18px 24px;background:oklch(0.985 0.008 237);border-bottom:1px solid oklch(0.93 0.01 250);display:flex;align-items:center;justify-content:space-between;">
+          <span style="font:700 14px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.45 0.02 250);">Your trip</span>
+          <a href="../book/" style="font:600 13px/1 Figtree,sans-serif;">← Edit</a>
+        </div>
+        <div id="rows" style="padding:8px 24px 20px;display:flex;flex-direction:column;"></div>
+      </div>
+      <div style="border:1px solid oklch(0.88 0.03 237);border-radius:16px;overflow:hidden;">
+        <div style="padding:18px 22px;background:oklch(0.96 0.018 237);display:flex;flex-direction:column;gap:3px;">
+          <span style="font:600 11px/1 Barlow,sans-serif;letter-spacing:0.16em;text-transform:uppercase;color:oklch(0.48 0.09 240);">Estimated total</span>
+          <span id="total" style="font:700 38px/1.05 'Barlow Condensed',sans-serif;color:oklch(0.30 0.04 245);"></span>
+        </div>
+        <div id="breakdown" style="padding:16px 22px;display:flex;flex-direction:column;gap:10px;background:#fff;"></div>
+      </div>
+    </div>
+
+    <!-- right: pay / promo -->
+    <div style="position:sticky;top:100px;display:flex;flex-direction:column;gap:16px;">
+      <div class="card" style="gap:14px;">
+        <span style="font:700 14px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.45 0.02 250);">Pay by card</span>
+        <div style="display:flex;flex-direction:column;gap:10px;opacity:0.45;pointer-events:none;">
+          <input class="inp" placeholder="Card number" disabled>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <input class="inp" placeholder="MM / YY" disabled>
+            <input class="inp" placeholder="CVC" disabled>
+          </div>
+        </div>
+        <!-- OWNER NOTE: when Stripe/PayPal is ready, the live payment button
+             replaces this block. Everything downstream already works. -->
+        <div style="padding:12px 14px;border-radius:10px;background:oklch(0.97 0.012 237);font:500 13.5px/1.55 Figtree,sans-serif;color:oklch(0.42 0.04 243);">
+          Online card payment isn't switched on yet. Book by phone at <a id="payTel" href="#"></a> — or use a promo code below.
+        </div>
+      </div>
+
+      <div class="card" style="gap:12px;">
+        <span style="font:700 14px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.45 0.02 250);">Promo code</span>
+        <div style="display:flex;gap:10px;">
+          <input id="promo" class="inp" placeholder="Enter code" style="text-transform:uppercase;">
+          <button class="btn2" id="applyPromo" style="padding:13px 20px;font-size:14px;white-space:nowrap;">Apply</button>
+        </div>
+        <span id="promoMsg" style="font:500 14px/1.5 Figtree,sans-serif;"></span>
+        <button class="btn" id="complete" disabled style="opacity:0.45;cursor:default;">Complete booking</button>
+        <span id="completeErr" class="err"></span>
+        <span style="font:400 12.5px/1.55 Figtree,sans-serif;color:oklch(0.58 0.015 250);">Completing checkout sends the request to dispatch. Nothing is charged today either way — the fare is confirmed before pickup.</span>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div id="ftr"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+<script src="../assets/config.js"></script>
+<script src="../assets/app.js"></script>
+<script>
+ISV.root = "../";
+ISV.ready(function(){
+document.getElementById('hdr').innerHTML = ISV.header("../");
+document.getElementById('ftr').innerHTML = ISV.footer("../");
+var payTel = document.getElementById('payTel');
+payTel.textContent = CONFIG.PHONE_DISPLAY; payTel.href = 'tel:' + CONFIG.PHONE_TEL;
+
+var draft = null;
+try { draft = JSON.parse(sessionStorage.getItem('isv_checkout_draft') || 'null'); } catch(e){}
+if (!draft){ location.replace('../book/'); return; }
+
+document.getElementById('total').textContent = ISV.money(draft.fare);
+// draft.miles is the TOTAL; the fare engine doubles round trips itself, so hand it one-way
+var oneWayMiles = draft.tripType === "round" ? draft.miles / 2 : draft.miles;
+var f = ISV.fare(Object.assign({}, draft, { miles: oneWayMiles }));
+document.getElementById('breakdown').innerHTML = f.rows.map(function(r){
+  return '<div style="display:flex;align-items:baseline;justify-content:space-between;gap:14px;">'+
+    '<span style="font:400 14px/1.4 Figtree,sans-serif;color:oklch(0.52 0.015 250);">'+r.label+'</span>'+
+    '<span style="font:600 14px/1.4 Figtree,sans-serif;color:oklch(0.32 0.02 250);">'+r.amount+'</span></div>';
+}).join('');
+var rows = [
+  ["Passenger", draft.name],
+  ["Phone", draft.phone],
+  ["Trip", draft.tripType === "round" ? "Round trip" : "One way"],
+  ["Pickup", draft.pickup],
+  ["Destination", draft.dropoff],
+  ["Appointment", ISV.fmtDate(draft.date) + (draft.time ? " at " + ISV.fmtTime(draft.time) : "")],
+  ["Vehicle", ISV.vehicleName(draft.vehicle)],
+  ["Distance", draft.miles + " mi total" + (draft.routedMiles ? " (measured route)" : "")]
+];
+document.getElementById('rows').innerHTML = rows.map(function(r){
+  return '<div style="display:grid;grid-template-columns:150px 1fr;gap:18px;padding:13px 0;border-bottom:1px solid oklch(0.96 0.006 250);">'+
+    '<span style="font:500 14px/1.5 Figtree,sans-serif;color:oklch(0.56 0.015 250);">'+r[0]+'</span>'+
+    '<span style="font:600 15px/1.5 Figtree,sans-serif;color:oklch(0.30 0.02 250);">'+ISV.esc(r[1])+'</span></div>';
+}).join('');
+
+var appliedPromo = null;
+var completeBtn = document.getElementById('complete');
+function setComplete(on){
+  completeBtn.disabled = !on;
+  completeBtn.style.opacity = on ? "1" : "0.45";
+  completeBtn.style.cursor = on ? "pointer" : "default";
+  completeBtn.textContent = on ? "Complete booking — promo applied" : "Complete booking";
+}
+
+document.getElementById('applyPromo').onclick = function(){
+  var code = document.getElementById('promo').value.trim().toUpperCase();
+  var msg = document.getElementById('promoMsg');
+  var valid = (CONFIG.PROMO_CODES || []).map(function(c){ return String(c).toUpperCase(); }).indexOf(code) > -1;
+  if (valid){
+    appliedPromo = code;
+    msg.textContent = "Code " + code + " applied — checkout unlocked.";
+    msg.style.color = "oklch(0.42 0.10 160)";
+    setComplete(true);
+  } else {
+    appliedPromo = null;
+    msg.textContent = code ? "That code isn't valid." : "Enter a code first.";
+    msg.style.color = "oklch(0.50 0.15 25)";
+    setComplete(false);
+  }
+};
+document.getElementById('promo').addEventListener('keydown', function(e){ if (e.key === 'Enter') document.getElementById('applyPromo').click(); });
+
+completeBtn.onclick = function(){
+  if (!appliedPromo) return;
+  var err = document.getElementById('completeErr'); err.textContent = "";
+  completeBtn.disabled = true; completeBtn.textContent = "Sending…";
+  var b = Object.assign({}, draft, { promo: appliedPromo });
+  b.log = [{ t: Date.now(), text: "Booked online with promo code " + appliedPromo + " — no charge (estimate " + ISV.money(b.fare) + ")" }];
+  ISV.book.addAsync(b).then(function(saved){
+    try { sessionStorage.removeItem('isv_checkout_draft'); } catch(e){}
+    location.href = '../confirm/?id=' + saved.id;
+  }).catch(function(e){
+    err.textContent = "The booking did NOT save: " + e;
+    completeBtn.disabled = false; setComplete(true);
+  });
+};
+});
+</script>
+</body>
+</html>
