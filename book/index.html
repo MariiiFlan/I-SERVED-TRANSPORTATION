@@ -8,7 +8,8 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <style>
   .addr-wrap { position: relative; }
-  .addr-sug { position:absolute; top:100%; left:0; right:0; z-index:30; background:#fff; border:1px solid oklch(0.88 0.02 250); border-radius:10px; margin-top:4px; overflow:hidden; box-shadow:0 10px 24px -12px oklch(0.4 0.05 245 / 0.45); }
+  .addr-wrap { z-index: 1200; }
+  .addr-sug { position:absolute; top:100%; left:0; right:0; z-index:1500; background:#fff; border:1px solid oklch(0.88 0.02 250); border-radius:10px; margin-top:4px; overflow:hidden; box-shadow:0 10px 24px -12px oklch(0.4 0.05 245 / 0.45); }
   .addr-sug div { padding:11px 14px; font:400 14px/1.4 Figtree,sans-serif; color:oklch(0.35 0.02 250); cursor:pointer; border-bottom:1px solid oklch(0.96 0.006 250); }
   .addr-sug div:hover { background:oklch(0.97 0.012 237); }
   #map { height:280px; border-radius:12px; border:1px solid oklch(0.90 0.015 250); display:none; }
@@ -342,18 +343,34 @@ function wireAddress(which){
     var q = input.value.trim();
     if (q.length < 3){ sug.style.display = "none"; return; }
     timer = setTimeout(function(){
-      fetch('https://nominatim.openstreetmap.org/search?format=json&limit=5&countrycodes=us&addressdetails=0&viewbox=-118.6,34.5,-116.1,33.2&q=' + encodeURIComponent(q))
+      fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&countrycodes=us&addressdetails=1&viewbox=-118.6,34.5,-116.1,33.2&q=' + encodeURIComponent(q))
         .then(function(r){ return r.json(); })
         .then(function(list){
           if (!list.length){ sug.style.display = "none"; return; }
+          function cleanLabel(x, typed){
+            var a = x.address || {};
+            var road = a.road || a.pedestrian || "";
+            var num = a.house_number || "";
+            if (!num && road){ var mnum = String(typed).match(/^\s*(\d+)/); if (mnum) num = mnum[1]; }
+            var city = a.city || a.town || a.village || a.hamlet || "";
+            var addr1 = (num ? num + " " : "") + road;
+            var line1 = (x.name && x.category !== "highway" && x.category !== "place")
+              ? x.name + (addr1 ? ", " + addr1 : "")
+              : addr1;
+            if (!line1) line1 = x.name || (x.display_name || "").split(",")[0];
+            var parts = [line1, city, "CA"].filter(Boolean);
+            var label = parts.join(", ");
+            if (a.postcode) label += " " + a.postcode;
+            return label;
+          }
           sug.innerHTML = list.map(function(x, i){
-            return '<div data-i="'+i+'">'+ISV.esc(x.display_name)+'</div>';
+            return '<div data-i="'+i+'">'+ISV.esc(cleanLabel(x, input.value))+'</div>';
           }).join('');
           sug.style.display = "block";
           Array.prototype.forEach.call(sug.children, function(el){
             el.onclick = function(){
               var x = list[+this.getAttribute('data-i')];
-              input.value = x.display_name;
+              input.value = cleanLabel(x, input.value);
               S.coords[which] = { lat: +x.lat, lon: +x.lon };
               sug.style.display = "none";
               setMarker(which, +x.lat, +x.lon, which === 'pickup' ? 'Pickup' : 'Destination');
