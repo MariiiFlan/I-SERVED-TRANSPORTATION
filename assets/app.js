@@ -12,6 +12,7 @@
   firebase.initializeApp(C.FIREBASE);
   var fbAuth = firebase.auth();
   var db = firebase.firestore();
+  try { db.settings({ experimentalAutoDetectLongPolling: true, merge: true }); } catch (e) {}
   var FV = firebase.firestore.FieldValue;
 
   /* ---------------- live cache ---------------- */
@@ -34,23 +35,138 @@
     if (code.indexOf("weak-password") > -1) return "Password needs at least 6 characters.";
     if (code.indexOf("invalid-email") > -1) return "That email doesn't look right.";
     if (code.indexOf("network") > -1) return "Network problem — check the connection and try again.";
+    if (code === "timeout") return "The database connection is being blocked on this network (ad blockers and some wifi networks do this). Try turning off the ad blocker for this site, or a different network.";
     return (e && e.message) || String(e);
   }
 
-  function clearSubs() { unsubs.forEach(function (u) { try { u(); } catch (e) {} }); unsubs = []; }
+  /* ------- REST fallback (plain HTTPS; survives ad blockers / strict networks) ------- */
+  var REST = "https://firestore.googleapis.com/v1/projects/" + C.FIREBASE.projectId + "/databases/(default)/documents";
+  function fsVal(v) {
+    if (v === null || v === undefined) return { nullValue: null };
+    if (typeof v === "boolean") return { booleanValue: v };
+    if (typeof v === "number") return (isFinite(v) && Math.floor(v) === v) ? { integerValue: String(v) } : { doubleValue: v };
+    if (Array.isArray(v)) return { arrayValue: { values: v.map(fsVal) } };
+    if (typeof v === "object") return { mapValue: { fields: fsFields(v) } };
+    return { stringValue: String(v) };
+  }
+  function fsFields(obj) { var f = {}; Object.keys(obj).forEach(function (k) { if (obj[k] !== undefined) f[k] = fsVal(obj[k]); }); return f; }
+  function fromFsVal(v) {
+    if (!v) return null;
+    if ("nullValue" in v) return null;
+    if ("booleanValue" in v) return v.booleanValue;
+    if ("integerValue" in v) return +v.integerValue;
+    if ("doubleValue" in v) return v.doubleValue;
+    if ("stringValue" in v) return v.stringValue;
+    if ("timestampValue" in v) return v.timestampValue;
+    if ("arrayValue" in v) return (v.arrayValue.values || []).map(fromFsVal);
+    if ("mapValue" in v) return fromFsFields(v.mapValue.fields || {});
+    return null;
+  }
+  function fromFsFields(fields) { var o = {}; Object.keys(fields || {}).forEach(function (k) { o[k] = fromFsVal(fields[k]); }); return o; }
+  function authHeaders() {
+    var u = fbAuth.currentUser;
+    return (u ? u.getIdToken() : Promise.resolve(null)).then(function (t) {
+      var h = { "Content-Type": "application/json" }; if (t) h.Authorization = "Bearer " + t; return h;
+    }, function () { return { "Content-Type": "application/json" }; });
+  }
+  function restErr(r) {
+    return r.json().catch(function () { return {}; }).then(function (j) {
+      throw { code: ((j.error && j.error.status) || "rest-error").toLowerCase().replace("_", "-"), message: j.error && j.error.message };
+    });
+  }
+  function restPatch(col, id, data, maskKeys) {
+    return authHeaders().then(function (h) {
+      var url = REST + "/" + col + "/" + encodeURIComponent(id);
+      if (maskKeys && maskKeys.length) url += "?" + maskKeys.map(function (k) { return "updateMask.fieldPaths=" + encodeURIComponent(k); }).join("&");
+      return fetch(url, { method: "PATCH", headers: h, body: JSON.stringify({ fields: fsFields(data) }) });
+    }).then(function (r) { if (!r.ok) return restErr(r); });
+  }
+  function restDelete(col, id) {
+    return authHeaders().then(function (h) {
+      return fetch(REST + "/" + col + "/" + encodeURIComponent(id), { method: "DELETE", headers: h });
+    }).then(function (r) { if (!r.ok) return restErr(r); });
+  }
+  function restGet(col, id) {
+    return authHeaders().then(function (h) {
+      return fetch(REST + "/" + col + "/" + encodeURIComponent(id), { headers: h });
+    }).then(function (r) {
+      if (r.status === 404) return { exists: false, data: function () { return undefined; } };
+      if (!r.ok) return restErr(r);
+      return r.json().then(function (j) { var d = fromFsFields(j.fields); return { exists: true, data: function () { return d; } }; });
+    });
+  }
+  function restListAll(col) {
+    return authHeaders().then(function (h) {
+      return fetch(REST + "/" + col + "?pageSize=300", { headers: h });
+    }).then(function (r) {
+      if (!r.ok) return restErr(r);
+      return r.json().then(function (j) {
+        return (j.documents || []).map(function (d) {
+          var o = fromFsFields(d.fields); o.__docId = d.name.split("/").pop(); return o;
+        });
+      });
+    });
+  }
+  function restWhere(col, field, value) {
+    return authHeaders().then(function (h) {
+      return fetch(REST.replace(/\/documents$/, "") + "/documents:runQuery", {
+        method: "POST", headers: h,
+        body: JSON.stringify({ structuredQuery: { from: [{ collectionId: col }], where: { fieldFilter: { field: { fieldPath: field }, op: "EQUAL", value: fsVal(value) } } } })
+      });
+    }).then(function (r) {
+      if (!r.ok) return restErr(r);
+      return r.json().then(function (arr) {
+        return arr.filter(function (x) { return x.document; }).map(function (x) {
+          var o = fromFsFields(x.document.fields); o.__docId = x.document.name.split("/").pop(); return o;
+        });
+      });
+    });
+  }
+  function withTimeout(p, ms) {
+    return Promise.race([p, new Promise(function (_, rej) { setTimeout(function () { rej({ code: "timeout" }); }, ms); })]);
+  }
+
+  /* ------- fallback polling when the realtime channel never connects ------- */
+  var pollTimer = null;
+  function startPolling() {
+    if (pollTimer || !ME) return;
+    function tick() {
+      if (ME.role === "owner") {
+        restListAll("bookings").then(function (list) { BOOKINGS = list.map(function (b) { b.id = b.id || b.__docId; return b; }); fireChange(); }).catch(function () {});
+        restListAll("users").then(function (list) { USERS = list.map(function (u) { u.uid = u.__docId; return u; }); fireChange(); }).catch(function () {});
+        restListAll("grants").then(function (list) { GRANTS = {}; list.forEach(function (g) { GRANTS[g.__docId] = g; }); fireChange(); }).catch(function () {});
+      } else {
+        var jobs = [restWhere("bookings", "userEmail", ME.email)];
+        if (ME.role === "driver") jobs.push(restWhere("bookings", "driverEmail", ME.email));
+        Promise.all(jobs).then(function (results) {
+          var seen = {}, out = [];
+          results.forEach(function (list) { list.forEach(function (b) { b.id = b.id || b.__docId; if (!seen[b.id]) { seen[b.id] = 1; out.push(b); } }); });
+          BOOKINGS = out; fireChange();
+        }).catch(function () {});
+      }
+    }
+    tick();
+    pollTimer = setInterval(tick, 5000);
+  }
+  function stopPolling() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
+
+  function clearSubs() { unsubs.forEach(function (u) { try { u(); } catch (e) {} }); unsubs = []; stopPolling(); }
 
   function subscribe() {
     clearSubs();
     BOOKINGS = []; USERS = []; GRANTS = {};
     if (!ME) { fireChange(); return Promise.resolve(); }
     var firsts = [];
+    var gotSnapshot = false;
     function sub(q, apply) {
       var resolveFirst; var p = new Promise(function (res) { resolveFirst = res; });
       firsts.push(p);
       unsubs.push(q.onSnapshot(function (snap) {
+        gotSnapshot = true; stopPolling();
         apply(snap); resolveFirst(); fireChange();
       }, function (err) { DBERROR = friendly(err); resolveFirst(); fireChange(); }));
     }
+    setTimeout(function () { if (!gotSnapshot && ME) startPolling(); }, 8000);
     function applyBookings(snap) {
       BOOKINGS = snap.docs.map(function (d) { var x = d.data(); x.id = d.id; return x; });
     }
@@ -73,25 +189,30 @@
     } else {
       sub(db.collection("bookings").where("userEmail", "==", ME.email), applyBookings);
     }
-    return Promise.all(firsts);
+    return withTimeout(Promise.all(firsts), 9000).catch(function () { startPolling(); });
   }
 
   function loadMe(fbUser) {
     if (!fbUser) { ME = null; return Promise.resolve(null); }
-    return db.collection("users").doc(fbUser.uid).get().then(function (doc) {
+    return withTimeout(db.collection("users").doc(fbUser.uid).get(), 6000)
+      .catch(function (e) { if (e && e.code === "timeout") return restGet("users", fbUser.uid); throw e; })
+      .then(function (doc) {
       if (doc.exists) {
         var d = doc.data();
         ME = { uid: fbUser.uid, email: norm(d.email || fbUser.email), name: d.name || "", phone: d.phone || "", role: d.role || "client" };
         // pending grant elevation (owner promoted this email after signup)
-        return db.collection("grants").doc(ME.email).get().then(function (g) {
-          if (g.exists && g.data().role && g.data().role !== ME.role) {
-            var newRole = g.data().role;
-            return db.collection("users").doc(ME.uid).update({ role: newRole }).then(function () {
-              ME.role = newRole; return ME;
-            }).catch(function () { return ME; });
-          }
-          return ME;
-        }).catch(function () { return ME; });
+        return withTimeout(db.collection("grants").doc(ME.email).get(), 5000)
+          .catch(function (e) { if (e && e.code === "timeout") return restGet("grants", ME.email); throw e; })
+          .then(function (g) {
+            if (g.exists && g.data().role && g.data().role !== ME.role) {
+              var newRole = g.data().role;
+              return withTimeout(db.collection("users").doc(ME.uid).update({ role: newRole }), 6000)
+                .catch(function (e) { if (e && e.code === "timeout") return restPatch("users", ME.uid, { role: newRole }, ["role"]); throw e; })
+                .then(function () { ME.role = newRole; return ME; })
+                .catch(function () { return ME; });
+            }
+            return ME;
+          }).catch(function () { return ME; });
       }
       ME = null; return null;
     }).catch(function (e) { DBERROR = friendly(e); ME = null; return null; });
@@ -101,7 +222,8 @@
   function ready(cb) {
     if (!readyPromise) {
       readyPromise = new Promise(function (resolve) {
-        db.collection("meta").doc("bootstrap").get()
+        withTimeout(db.collection("meta").doc("bootstrap").get(), 5000)
+          .catch(function (e) { if (e && e.code === "timeout") return restGet("meta", "bootstrap"); throw e; })
           .then(function (d) { BOOTSTRAPPED = d.exists; })
           .catch(function (e) { DBERROR = DBERROR || friendly(e); })
           .then(function () {
@@ -126,23 +248,31 @@
         var cred = await fbAuth.createUserWithEmailAndPassword(email, password);
         var role = "client";
         try {
-          var g = await db.collection("grants").doc(email).get();
+          var g = await withTimeout(db.collection("grants").doc(email).get(), 5000)
+            .catch(function (e) { if (e && e.code === "timeout") return restGet("grants", email); throw e; });
           if (g.exists && g.data().role) role = g.data().role;
         } catch (e) {}
         var boot = false;
         if (role === "client") {
           try {
-            var b = await db.collection("meta").doc("bootstrap").get();
+            var b = await withTimeout(db.collection("meta").doc("bootstrap").get(), 5000)
+              .catch(function (e) { if (e && e.code === "timeout") return restGet("meta", "bootstrap"); throw e; });
             if (!b.exists) { role = "owner"; boot = true; }
           } catch (e) {}
           if (!BOOTSTRAPPED && (C.OWNER_EMAILS || []).map(norm).indexOf(email) > -1) { role = "owner"; boot = true; }
         }
+        var userDoc = { name: name.trim(), email: email, phone: (phone || "").trim(), role: role, created: Date.now() };
         var batch = db.batch();
-        batch.set(db.collection("users").doc(cred.user.uid), {
-          name: name.trim(), email: email, phone: (phone || "").trim(), role: role, created: FV.serverTimestamp()
-        });
-        if (boot) batch.set(db.collection("meta").doc("bootstrap"), { uid: cred.user.uid, t: FV.serverTimestamp() });
-        await batch.commit();
+        batch.set(db.collection("users").doc(cred.user.uid), userDoc);
+        if (boot) batch.set(db.collection("meta").doc("bootstrap"), { uid: cred.user.uid, t: Date.now() });
+        try {
+          await withTimeout(batch.commit(), 8000);
+        } catch (e) {
+          if (e && e.code === "timeout") {
+            await restPatch("users", cred.user.uid, userDoc);
+            if (boot) await restPatch("meta", "bootstrap", { uid: cred.user.uid, t: Date.now() });
+          } else throw e;
+        }
         BOOTSTRAPPED = true;
         await loadMe(cred.user); await subscribe();
         return role;
@@ -164,18 +294,28 @@
       email = norm(email);
       var data = Object.assign({ role: role }, profilePatch || {});
       GRANTS[email] = Object.assign({}, GRANTS[email] || {}, data); // optimistic
-      var jobs = [db.collection("grants").doc(email).set(data, { merge: true })];
+      var jobs = [withTimeout(db.collection("grants").doc(email).set(data, { merge: true }), 8000)
+        .catch(function (e) { if (e && e.code === "timeout") return restPatch("grants", email, data, Object.keys(data)); throw e; })];
       var u = USERS.find(function (x) { return norm(x.email) === email; });
-      if (u) { u.role = role; jobs.push(db.collection("users").doc(u.uid).update({ role: role })); }
+      if (u) {
+        u.role = role;
+        jobs.push(withTimeout(db.collection("users").doc(u.uid).update({ role: role }), 8000)
+          .catch(function (e) { if (e && e.code === "timeout") return restPatch("users", u.uid, { role: role }, ["role"]); throw e; }));
+      }
       fireChange();
       return Promise.all(jobs).catch(function (e) { alert(friendly(e)); });
     },
     removeRole: function (email) {
       email = norm(email);
       delete GRANTS[email];
-      var jobs = [db.collection("grants").doc(email).delete()];
+      var jobs = [withTimeout(db.collection("grants").doc(email).delete(), 8000)
+        .catch(function (e) { if (e && e.code === "timeout") return restDelete("grants", email); throw e; })];
       var u = USERS.find(function (x) { return norm(x.email) === email; });
-      if (u) { u.role = "client"; jobs.push(db.collection("users").doc(u.uid).update({ role: "client" })); }
+      if (u) {
+        u.role = "client";
+        jobs.push(withTimeout(db.collection("users").doc(u.uid).update({ role: "client" }), 8000)
+          .catch(function (e) { if (e && e.code === "timeout") return restPatch("users", u.uid, { role: "client" }, ["role"]); throw e; }));
+      }
       fireChange();
       return Promise.all(jobs).catch(function (e) { alert(friendly(e)); });
     },
@@ -183,7 +323,9 @@
       email = norm(email);
       GRANTS[email] = Object.assign({}, GRANTS[email] || {}, patch);
       fireChange();
-      return db.collection("grants").doc(email).set(patch, { merge: true }).catch(function (e) { alert(friendly(e)); });
+      return withTimeout(db.collection("grants").doc(email).set(patch, { merge: true }), 8000)
+        .catch(function (e) { if (e && e.code === "timeout") return restPatch("grants", email, patch, Object.keys(patch)); throw e; })
+        .catch(function (e) { alert(friendly(e)); });
     },
     accounts: function () {
       var list = USERS.map(function (u) { return { name: u.name, email: norm(u.email), phone: u.phone, role: u.role || "client", uid: u.uid }; });
@@ -235,19 +377,33 @@
     },
     addAsync: function (b) { // waits for the database to CONFIRM before resolving
       BOOK._prep(b);
-      return db.collection("bookings").doc(b.id).set(b).then(function () {
-        BOOKINGS.push(b);
-        try { sessionStorage.setItem("isv_last_booking", JSON.stringify(b)); } catch (e) {}
-        fireChange();
-        return b;
-      }, function (e) { throw friendly(e); });
+      return withTimeout(db.collection("bookings").doc(b.id).set(b), 8000)
+        .catch(function (e) {
+          if (e && e.code === "timeout") return restPatch("bookings", b.id, b); // blocked channel? plain HTTPS instead
+          throw e;
+        })
+        .then(function () {
+          BOOKINGS.push(b);
+          try { sessionStorage.setItem("isv_last_booking", JSON.stringify(b)); } catch (e) {}
+          fireChange();
+          return b;
+        }, function (e) { throw friendly(e); });
     },
     update: function (id, patch, logText) {
       var b = BOOKINGS.find(function (x) { return x.id === id; });
       if (b) { Object.assign(b, patch); if (logText) { b.log = (b.log || []).concat([{ t: Date.now(), text: logText }]); } }
       var data = Object.assign({}, patch);
       if (logText) data.log = FV.arrayUnion({ t: Date.now(), text: logText });
-      db.collection("bookings").doc(id).update(data).catch(function (e) { alert("Couldn't save that change: " + friendly(e)); });
+      withTimeout(db.collection("bookings").doc(id).update(data), 8000)
+        .catch(function (e) {
+          if (e && e.code === "timeout") {
+            var full = Object.assign({}, patch);
+            if (b && logText) full.log = b.log;
+            return restPatch("bookings", id, full, Object.keys(full));
+          }
+          throw e;
+        })
+        .catch(function (e) { alert("Couldn't save that change: " + friendly(e)); });
       fireChange();
     },
     importSet: function (docs) { // bulk import/upsert, chunked batches
@@ -258,7 +414,12 @@
         chain = chain.then(function () {
           var batch = db.batch();
           chunk.forEach(function (d) { batch.set(db.collection("bookings").doc(d.id), d, { merge: true }); });
-          return batch.commit();
+          return withTimeout(batch.commit(), 12000).catch(function (e) {
+            if (e && e.code !== "timeout") throw e;
+            var c = Promise.resolve(); // blocked channel: one-by-one over plain HTTPS
+            chunk.forEach(function (d) { c = c.then(function () { return restPatch("bookings", d.id, d, Object.keys(d)); }); });
+            return c;
+          });
         });
       });
       return chain;
