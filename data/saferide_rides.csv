@@ -1,0 +1,23 @@
+rideId,status,confirmationStatus,driverName,fulfilledBy,vehicleName,inboundDate,arrivedDate,startedDate,completedDate,claimStatus,claimStatusUpdates,claimAttestation
+42777387,Scheduled,confirmed,Unassigned,"Saferide APP","2004 Toyota (Wheelchair)",,,,,"Not Submitted",,False
+42777437,WillCall,confirmed,Unassigned,"Saferide APP","2004 Toyota (Wheelchair)",,,,,"Not Submitted",,False
+53710957,Scheduled,confirmed,Unassigned,"Saferide APP",384669,,,,,"Not Submitted",,False
+53710961,WillCall,confirmed,Unassigned,"Saferide APP",384669,,,,,"Not Submitted",,False
+54423138,Scheduled,confirmed,Unassigned,"Saferide APP",Unassigned,,,,,"Not Submitted",,False
+54423145,WillCall,confirmed,Unassigned,"Saferide APP",Unassigned,,,,,"Not Submitted",,False
+54635253,Scheduled,confirmed,Unassigned,"Saferide APP",Unassigned,,,,,"Not Submitted",,False
+54635259,WillCall,confirmed,Unassigned,"Saferide APP",Unassigned,,,,,"Not Submitted",,False
+54695538,WillCall,confirmed,Unassigned,"Saferide APP","2004 Toyota (Wheelchair)",,,,,"Not Submitted",,False
+54759834,Scheduled,confirmed,Unassigned,"Saferide APP","2004 Toyota (Wheelchair)",,,,,"Not Submitted",,False
+54759837,WillCall,confirmed,Unassigned,"Saferide APP","2004 Toyota (Wheelchair)",,,,,"Not Submitted",,False
+54825135,Cancelled,confirmed,Unassigned,"Saferide APP",Unassigned,,,,,"Not Submitted",,False
+54825139,Cancelled,confirmed,Unassigned,"Saferide APP",Unassigned,,,,,"Not Submitted",,False
+54859833,Scheduled,confirmed,Unassigned,"Saferide APP",Unassigned,,,,,"Not Submitted",,False
+54859837,WillCall,confirmed,Unassigned,"Saferide APP",Unassigned,,,,,"Not Submitted",,False
+54892547,Scheduled,confirmed,Unassigned,"Saferide APP","2004 Toyota (Wheelchair)",,,,,"Not Submitted",,False
+54926293,Scheduled,confirmed,Unassigned,"Saferide APP","2004 Toyota (Wheelchair)",,,,,"Not Submitted",,False
+54926297,Scheduled,confirmed,Unassigned,"Saferide APP","2004 Toyota (Wheelchair)",,,,,"Not Submitted",,False
+54926941,Scheduled,confirmed,Unassigned,"Saferide APP","2004 Toyota (Wheelchair)",,,,,"Not Submitted",,False
+54926944,WillCall,confirmed,Unassigned,"Saferide APP","2004 Toyota (Wheelchair)",,,,,"Not Submitted",,False
+55027268,Scheduled,confirmed,Unassigned,"Saferide APP",Unassigned,,,,,"Not Submitted",,False
+55027269,Scheduled,confirmed,Unassigned,"Saferide APP",Unassigned,,,,,"Not Submitted",,False

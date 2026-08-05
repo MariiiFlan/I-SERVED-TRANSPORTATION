@@ -51,7 +51,7 @@
         </div>
         <div style="display:flex;flex-direction:column;gap:7px;">
           <label class="lbl">Password</label>
-          <input id="crPass" type="password" class="inp" placeholder="At least 4 characters" autocomplete="new-password">
+          <input id="crPass" type="password" class="inp" placeholder="At least 6 characters" autocomplete="new-password">
         </div>
         <button class="btn" id="crGo">Create account</button>
         <span id="crErr" class="err"></span>
@@ -80,10 +80,14 @@
   </div>
 </div>
 
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
 <script src="../assets/config.js"></script>
 <script src="../assets/app.js"></script>
 <script>
 ISV.root = "../";
+ISV.ready(function(){
 document.getElementById('logoSlot').innerHTML = ISV.logo(34);
 
 var qs = new URLSearchParams(location.search);
@@ -106,13 +110,13 @@ if (denied){
     : "That page is for driver accounts. Ask the owner to add your email as a driver from the Team page — then it unlocks automatically.")
     + (me ? ' <a href="#" id="noticeOut">Sign out</a> to use a different account.' : '');
   var no = document.getElementById('noticeOut');
-  if (no) no.onclick = function(e){ e.preventDefault(); ISV.auth.signOut(); location.href = "./"; };
+  if (no) no.onclick = function(e){ e.preventDefault(); ISV.auth.signOutTo("./"); };
 } else if (me){
   location.href = homeFor(me.role);
 }
 
 // first-account hint
-if (ISV.db.users().length === 0){
+if (!ISV.bootstrapped()){
   var n2 = document.getElementById('notice');
   n2.style.display = "block";
   n2.textContent = "No accounts exist yet — the first account created becomes the Owner account.";
@@ -155,6 +159,8 @@ document.getElementById('crGo').onclick = async function(){
   document.getElementById(id).addEventListener('keydown', function(e){
     if (e.key === 'Enter') document.getElementById(id === 'siPass' ? 'siGo' : 'crGo').click();
   });
+});
+
 });
 </script>
 </body>

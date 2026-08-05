@@ -73,10 +73,14 @@
   </main>
 </div>
 
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
 <script src="../../assets/config.js"></script>
 <script src="../../assets/app.js"></script>
 <script>
 ISV.root = "../../";
+ISV.ready(function(){
 var me = ISV.auth.require("owner", "/owner/team/");
 if (me){
 document.getElementById('side').innerHTML = ISV.sidebar("../../", "team", "Dispatch console", [
@@ -112,7 +116,7 @@ document.getElementById('saveMember').onclick = function(){
       active: true
     });
   }
-  var existing = ISV.db.users().find(function(u){ return u.email === email; });
+  var existing = ISV.auth.accounts().find(function(u){ return u.email === email && !u.pending; });
   ok.textContent = existing ? "Done — " + email + " is now a " + role + "." : "Saved — " + role + " access is waiting for " + email + " when they create their account.";
   document.getElementById('fEmail').value = "";
   render();
@@ -176,7 +180,10 @@ function render(){
   });
 }
 render();
+ISV.onChange(render);
 }
+
+});
 </script>
 </body>
 </html>

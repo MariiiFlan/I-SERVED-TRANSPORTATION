@@ -52,10 +52,14 @@
 
 <div id="ftr"></div>
 
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
 <script src="../assets/config.js"></script>
 <script src="../assets/app.js"></script>
 <script>
 ISV.root = "../";
+ISV.ready(function(){
 document.getElementById('hdr').innerHTML = ISV.header("../");
 document.getElementById('ftr').innerHTML = ISV.footer("../");
 var chTel = document.getElementById('chTel');
@@ -84,6 +88,8 @@ if (b){
 } else {
   document.querySelector('main').innerHTML = '<p style="font:400 17px/1.6 Figtree,sans-serif;">Booking not found. <a href="../book/">Book a ride</a></p>';
 }
+
+});
 </script>
 </body>
 </html>

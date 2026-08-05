@@ -18,7 +18,7 @@
     </div>
     <div style="display:flex;gap:10px;">
       <a class="btn" href="../book/" style="padding:14px 22px;display:inline-block;">Book a ride</a>
-      <button class="btn2" onclick="ISV.auth.signOut();location.href='../'">Sign out</button>
+      <button class="btn2" onclick="ISV.auth.signOutTo('../')">Sign out</button>
     </div>
   </div>
 
@@ -27,10 +27,14 @@
 
 <div id="ftr"></div>
 
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
 <script src="../assets/config.js"></script>
 <script src="../assets/app.js"></script>
 <script>
 ISV.root = "../";
+ISV.ready(function(){
 var me = ISV.auth.require(null, "/my-rides/");
 document.getElementById('hdr').innerHTML = ISV.header("../");
 document.getElementById('ftr').innerHTML = ISV.footer("../");
@@ -50,8 +54,11 @@ if (me){
     '<div style="border:1px dashed oklch(0.88 0.02 250);border-radius:16px;padding:40px;text-align:center;font:400 16px/1.6 Figtree,sans-serif;color:oklch(0.55 0.015 250);">No rides yet. <a href="../book/">Book your first ride</a> and it will appear here with live status.</div>';
   }
   render();
+  ISV.onChange(render);
   setInterval(render, 3000);
 }
+
+});
 </script>
 </body>
 </html>

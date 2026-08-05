@@ -8,6 +8,18 @@ window.CONFIG = {
   PHONE_TEL: "7578068218",
   EMAIL: "dispatch@iservedtransportation.com", // placeholder — swap when you have the real one
 
+  // ---------------- FIREBASE (live database + logins) ----------------
+  // These keys are safe to be public — security comes from the database
+  // rules (firestore.rules — pasted into the Firebase console once).
+  FIREBASE: {
+    apiKey: "AIzaSyDNQDWoXBZOP78-Fjld34wb2uKnC8RyNew",
+    authDomain: "iserved.firebaseapp.com",
+    projectId: "iserved",
+    storageBucket: "iserved.firebasestorage.app",
+    messagingSenderId: "641810721894",
+    appId: "1:641810721894:web:de0d925183f6093ccf51a7"
+  },
+
   // ---------------- PRICING ----------------
   // This matches the fare model in your approved booking design:
   //   base fare + miles × per-mile + vehicle fee + add-ons.
@@ -24,7 +36,7 @@ window.CONFIG = {
   ADDON_ASSIST: 12,    // door-through-door assistance
   ADDON_AFTERHOURS: 25,// pickup before 6am / after 8pm
 
-  // Emails in this list are ALWAYS owners the moment they create an account.
-  // (The very first account created on the site also becomes an owner automatically.)
+  // The FIRST account created on the site becomes the owner automatically.
+  // After that, grant owner/driver access from Owner console -> Team.
   OWNER_EMAILS: []
 };

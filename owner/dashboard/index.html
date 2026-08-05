@@ -16,7 +16,10 @@
         <span id="today" style="font:600 11px/1 Barlow,sans-serif;letter-spacing:0.16em;text-transform:uppercase;color:oklch(0.62 0.11 237);"></span>
         <h2 style="margin:0;font:700 34px/1.05 'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:0.01em;">Bookings</h2>
       </div>
-      <a href="../../book/" class="btn" style="padding:13px 20px;font-size:15px;display:inline-block;">New booking</a>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <a href="../import/" class="btn2" style="padding:13px 20px;font-size:15px;display:inline-block;">Import rides</a>
+        <a href="../../book/" class="btn" style="padding:13px 20px;font-size:15px;display:inline-block;">New booking</a>
+      </div>
     </div>
 
     <div class="grid4" style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;">
@@ -46,10 +49,14 @@
   </main>
 </div>
 
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
 <script src="../../assets/config.js"></script>
 <script src="../../assets/app.js"></script>
 <script>
 ISV.root = "../../";
+ISV.ready(function(){
 var me = ISV.auth.require("owner", "/owner/dashboard/");
 if (me){
 
@@ -171,8 +178,11 @@ document.getElementById('seed').onclick = function(e){
 
 function refresh(){ sidebar(); stats(); driverFilter(); rows(); }
 chips(); refresh();
+ISV.onChange(refresh);
 setInterval(refresh, 4000);
 }
+
+});
 </script>
 </body>
 </html>

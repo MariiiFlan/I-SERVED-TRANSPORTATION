@@ -1,0 +1,73 @@
+rules_version = '2';
+// ============================================================
+// I SERVED TRANSPORTATION — Firestore security rules
+// Paste this whole file into:
+// Firebase console -> Firestore Database -> Rules tab -> Publish
+// ============================================================
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function authed() { return request.auth != null; }
+    function myEmail() { return request.auth.token.email; }
+    function isOwner() {
+      return authed() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'owner';
+    }
+    function grantExists(email) {
+      return exists(/databases/$(database)/documents/grants/$(email));
+    }
+    function grantRole(email) {
+      return get(/databases/$(database)/documents/grants/$(email)).data.role;
+    }
+
+    // One-time flag: set when the first (owner) account is created.
+    match /meta/bootstrap {
+      allow read: if true;
+      allow create: if authed();
+      allow update, delete: if false;
+    }
+
+    // Accounts. People manage their own; owners see and manage everyone.
+    // Nobody can promote themselves — role changes come from owners,
+    // or from a grant an owner already created for that email.
+    match /users/{uid} {
+      allow read: if authed() && (request.auth.uid == uid || isOwner());
+      allow create: if authed() && request.auth.uid == uid && (
+        request.resource.data.role == 'client'
+        || (grantExists(myEmail()) && request.resource.data.role == grantRole(myEmail()))
+        || (request.resource.data.role == 'owner'
+            && !exists(/databases/$(database)/documents/meta/bootstrap))
+      );
+      allow update: if isOwner()
+        || (authed() && request.auth.uid == uid
+            && request.resource.data.role == resource.data.role)
+        || (authed() && request.auth.uid == uid
+            && grantExists(myEmail())
+            && request.resource.data.role == grantRole(myEmail()));
+      allow delete: if isOwner();
+    }
+
+    // Role grants + driver profiles, keyed by email. Owner-only writes.
+    match /grants/{email} {
+      allow read: if authed() && (isOwner() || myEmail() == email);
+      allow write: if isOwner();
+    }
+
+    // Bookings. Anyone can submit one (public booking form, no login
+    // needed). Reading/updating is locked to: owners, the assigned
+    // driver, and the client who booked it.
+    match /bookings/{id} {
+      allow create: if true;
+      allow read: if authed() && (
+        isOwner()
+        || resource.data.userEmail == myEmail()
+        || resource.data.driverEmail == myEmail()
+      );
+      allow update: if authed() && (
+        isOwner()
+        || resource.data.driverEmail == myEmail()
+      );
+      allow delete: if isOwner();
+    }
+  }
+}

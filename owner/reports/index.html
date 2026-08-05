@@ -39,10 +39,14 @@
   </main>
 </div>
 
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
 <script src="../../assets/config.js"></script>
 <script src="../../assets/app.js"></script>
 <script>
 ISV.root = "../../";
+ISV.ready(function(){
 var me = ISV.auth.require("owner", "/owner/reports/");
 if (me){
 document.getElementById('side').innerHTML = ISV.sidebar("../../", "rep", "Dispatch console", [
@@ -96,6 +100,8 @@ document.getElementById('byDriver').innerHTML = keys.length ? keys.map(function(
     '<span style="font:500 14px/1.4 Figtree,sans-serif;color:oklch(0.45 0.015 250);">'+byD[email].n+' rides · $'+Math.round(byD[email].rev)+'</span></div>';
 }).join('') : '<span style="font:400 14px/1.6 Figtree,sans-serif;color:oklch(0.58 0.015 250);">No assigned rides this week yet.</span>';
 }
+
+});
 </script>
 </body>
 </html>

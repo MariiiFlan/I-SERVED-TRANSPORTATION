@@ -1,149 +1,268 @@
 /* ============================================================
-   I SERVED TRANSPORTATION — core (accounts, data, fare, shared UI)
-   Data lives in this browser's localStorage. That makes the whole
-   site fully functional as a demo on one device. To sync accounts
-   and bookings across every phone/laptop for real, swap the DB
-   functions below for Firebase (see README.txt). Page code and
-   designs need zero changes.
+   I SERVED TRANSPORTATION — core (Firebase edition)
+   Accounts = Firebase Authentication (email/password).
+   Data     = Cloud Firestore, live-synced across every device.
+   Pages read from an in-memory cache that Firestore keeps fresh
+   in real time; writes go straight to Firestore (with an
+   optimistic local update so buttons feel instant).
    ============================================================ */
 (function () {
   var C = window.CONFIG;
 
-  /* ---------------- tiny db ---------------- */
-  function load(k, d) { try { var v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } }
-  function save(k, v) { localStorage.setItem(k, JSON.stringify(v)); }
+  firebase.initializeApp(C.FIREBASE);
+  var fbAuth = firebase.auth();
+  var db = firebase.firestore();
+  var FV = firebase.firestore.FieldValue;
 
-  var DB = {
-    users: function () { return load("isv_users", []); },
-    saveUsers: function (u) { save("isv_users", u); },
-    grants: function () { return load("isv_grants", {}); },        // email -> role granted by owner before signup
-    saveGrants: function (g) { save("isv_grants", g); },
-    profiles: function () { return load("isv_profiles", {}); },    // email -> {vehicle, cred, phone, active}
-    saveProfiles: function (p) { save("isv_profiles", p); },
-    bookings: function () { return load("isv_bookings", []); },
-    saveBookings: function (b) { save("isv_bookings", b); }
-  };
+  /* ---------------- live cache ---------------- */
+  var ME = null;              // {uid, email, name, phone, role}
+  var BOOKINGS = [];          // visible bookings for this account's role
+  var USERS = [];             // all user docs (owners only)
+  var GRANTS = {};            // email -> {role, vehicle, cred, phone, active} (owners + own)
+  var BOOTSTRAPPED = false;   // does the site have its first owner yet
+  var DBERROR = null;
+  var unsubs = [];
+  var changeHandlers = [];
+
+  function norm(email) { return String(email || "").trim().toLowerCase(); }
+  function fireChange() { changeHandlers.forEach(function (f) { try { f(); } catch (e) {} }); }
+  function friendly(e) {
+    var code = (e && e.code) || "";
+    if (code.indexOf("permission-denied") > -1) return "The database security rules aren't installed yet — open README.txt and do the 'PASTE THE DATABASE RULES' step (2 minutes).";
+    if (code.indexOf("email-already-in-use") > -1) return "An account with that email already exists — sign in instead.";
+    if (code.indexOf("invalid-credential") > -1 || code.indexOf("wrong-password") > -1 || code.indexOf("user-not-found") > -1) return "Email or password doesn't match an account.";
+    if (code.indexOf("weak-password") > -1) return "Password needs at least 6 characters.";
+    if (code.indexOf("invalid-email") > -1) return "That email doesn't look right.";
+    if (code.indexOf("network") > -1) return "Network problem — check the connection and try again.";
+    return (e && e.message) || String(e);
+  }
+
+  function clearSubs() { unsubs.forEach(function (u) { try { u(); } catch (e) {} }); unsubs = []; }
+
+  function subscribe() {
+    clearSubs();
+    BOOKINGS = []; USERS = []; GRANTS = {};
+    if (!ME) { fireChange(); return Promise.resolve(); }
+    var firsts = [];
+    function sub(q, apply) {
+      var resolveFirst; var p = new Promise(function (res) { resolveFirst = res; });
+      firsts.push(p);
+      unsubs.push(q.onSnapshot(function (snap) {
+        apply(snap); resolveFirst(); fireChange();
+      }, function (err) { DBERROR = friendly(err); resolveFirst(); fireChange(); }));
+    }
+    function applyBookings(snap) {
+      BOOKINGS = snap.docs.map(function (d) { var x = d.data(); x.id = d.id; return x; });
+    }
+    if (ME.role === "owner") {
+      sub(db.collection("bookings"), applyBookings);
+      sub(db.collection("users"), function (snap) {
+        USERS = snap.docs.map(function (d) { var x = d.data(); x.uid = d.id; return x; });
+      });
+      sub(db.collection("grants"), function (snap) {
+        GRANTS = {}; snap.docs.forEach(function (d) { GRANTS[d.id] = d.data(); });
+      });
+    } else if (ME.role === "driver") {
+      sub(db.collection("bookings").where("driverEmail", "==", ME.email), applyBookings);
+      // a driver may also have booked personal rides
+      sub(db.collection("bookings").where("userEmail", "==", ME.email), function (snap) {
+        var own = snap.docs.map(function (d) { var x = d.data(); x.id = d.id; return x; });
+        var ids = {}; BOOKINGS.forEach(function (b) { ids[b.id] = 1; });
+        own.forEach(function (b) { if (!ids[b.id]) BOOKINGS.push(b); });
+      });
+    } else {
+      sub(db.collection("bookings").where("userEmail", "==", ME.email), applyBookings);
+    }
+    return Promise.all(firsts);
+  }
+
+  function loadMe(fbUser) {
+    if (!fbUser) { ME = null; return Promise.resolve(null); }
+    return db.collection("users").doc(fbUser.uid).get().then(function (doc) {
+      if (doc.exists) {
+        var d = doc.data();
+        ME = { uid: fbUser.uid, email: norm(d.email || fbUser.email), name: d.name || "", phone: d.phone || "", role: d.role || "client" };
+        // pending grant elevation (owner promoted this email after signup)
+        return db.collection("grants").doc(ME.email).get().then(function (g) {
+          if (g.exists && g.data().role && g.data().role !== ME.role) {
+            var newRole = g.data().role;
+            return db.collection("users").doc(ME.uid).update({ role: newRole }).then(function () {
+              ME.role = newRole; return ME;
+            }).catch(function () { return ME; });
+          }
+          return ME;
+        }).catch(function () { return ME; });
+      }
+      ME = null; return null;
+    }).catch(function (e) { DBERROR = friendly(e); ME = null; return null; });
+  }
+
+  var readyPromise = null;
+  function ready(cb) {
+    if (!readyPromise) {
+      readyPromise = new Promise(function (resolve) {
+        db.collection("meta").doc("bootstrap").get()
+          .then(function (d) { BOOTSTRAPPED = d.exists; })
+          .catch(function (e) { DBERROR = DBERROR || friendly(e); })
+          .then(function () {
+            var un = fbAuth.onAuthStateChanged(function (fbUser) {
+              un();
+              loadMe(fbUser).then(subscribe).then(resolve);
+            });
+          });
+      });
+    }
+    readyPromise.then(function () { cb(); });
+  }
 
   /* ---------------- auth ---------------- */
-  async function hash(str) {
-    try {
-      var buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("isv$" + str));
-      return Array.from(new Uint8Array(buf)).map(function (b) { return b.toString(16).padStart(2, "0"); }).join("");
-    } catch (e) { // file:// fallback
-      var h = 0; str = "isv$" + str;
-      for (var i = 0; i < str.length; i++) { h = (h << 5) - h + str.charCodeAt(i); h |= 0; }
-      return "x" + h;
-    }
-  }
-  function norm(email) { return String(email || "").trim().toLowerCase(); }
-
   var AUTH = {
-    me: function () {
-      var s = load("isv_session", null);
-      if (!s) return null;
-      var u = DB.users().find(function (x) { return x.email === s; });
-      return u || null;
-    },
+    me: function () { return ME; },
     register: async function (name, email, phone, password) {
       email = norm(email);
       if (!name || !email || !password) throw "Fill in name, email, and password.";
-      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw "That email doesn't look right.";
-      if (password.length < 4) throw "Password needs at least 4 characters.";
-      var users = DB.users();
-      if (users.find(function (u) { return u.email === email; })) throw "An account with that email already exists — sign in instead.";
-      var role = "client";
-      if (users.length === 0) role = "owner"; // first account on the site = owner
-      if ((C.OWNER_EMAILS || []).map(norm).indexOf(email) > -1) role = "owner";
-      var g = DB.grants();
-      if (g[email]) role = g[email]; // owner pre-assigned this email a role
-      users.push({ name: name.trim(), email: email, phone: (phone || "").trim(), pass: await hash(password), role: role, created: Date.now() });
-      DB.saveUsers(users);
-      save("isv_session", email);
-      return role;
+      if (password.length < 6) throw "Password needs at least 6 characters.";
+      try {
+        var cred = await fbAuth.createUserWithEmailAndPassword(email, password);
+        var role = "client";
+        try {
+          var g = await db.collection("grants").doc(email).get();
+          if (g.exists && g.data().role) role = g.data().role;
+        } catch (e) {}
+        var boot = false;
+        if (role === "client") {
+          try {
+            var b = await db.collection("meta").doc("bootstrap").get();
+            if (!b.exists) { role = "owner"; boot = true; }
+          } catch (e) {}
+          if (!BOOTSTRAPPED && (C.OWNER_EMAILS || []).map(norm).indexOf(email) > -1) { role = "owner"; boot = true; }
+        }
+        var batch = db.batch();
+        batch.set(db.collection("users").doc(cred.user.uid), {
+          name: name.trim(), email: email, phone: (phone || "").trim(), role: role, created: FV.serverTimestamp()
+        });
+        if (boot) batch.set(db.collection("meta").doc("bootstrap"), { uid: cred.user.uid, t: FV.serverTimestamp() });
+        await batch.commit();
+        BOOTSTRAPPED = true;
+        await loadMe(cred.user); await subscribe();
+        return role;
+      } catch (e) { throw friendly(e); }
     },
     signIn: async function (email, password) {
-      email = norm(email);
-      var u = DB.users().find(function (x) { return x.email === email; });
-      if (!u) throw "No account with that email. Create one below.";
-      if (u.pass !== await hash(password)) throw "Wrong password.";
-      save("isv_session", email);
-      return u;
+      try {
+        var cred = await fbAuth.signInWithEmailAndPassword(norm(email), password);
+        var me = await loadMe(cred.user);
+        if (!me) throw { code: "permission-denied" };
+        await subscribe();
+        return me;
+      } catch (e) { throw friendly(e); }
     },
-    signOut: function () { localStorage.removeItem("isv_session"); },
-    setRole: function (email, role) {           // owner action; works even before that email registers
+    signOutTo: function (url) {
+      fbAuth.signOut().then(function () { location.href = url; }, function () { location.href = url; });
+    },
+    setRole: function (email, role, profilePatch) {
       email = norm(email);
-      var users = DB.users(), u = users.find(function (x) { return x.email === email; });
-      if (u) { u.role = role; DB.saveUsers(users); }
-      var g = DB.grants(); g[email] = role; DB.saveGrants(g);
+      var data = Object.assign({ role: role }, profilePatch || {});
+      GRANTS[email] = Object.assign({}, GRANTS[email] || {}, data); // optimistic
+      var jobs = [db.collection("grants").doc(email).set(data, { merge: true })];
+      var u = USERS.find(function (x) { return norm(x.email) === email; });
+      if (u) { u.role = role; jobs.push(db.collection("users").doc(u.uid).update({ role: role })); }
+      fireChange();
+      return Promise.all(jobs).catch(function (e) { alert(friendly(e)); });
     },
     removeRole: function (email) {
       email = norm(email);
-      var users = DB.users(), u = users.find(function (x) { return x.email === email; });
-      if (u) { u.role = "client"; DB.saveUsers(users); }
-      var g = DB.grants(); delete g[email]; DB.saveGrants(g);
+      delete GRANTS[email];
+      var jobs = [db.collection("grants").doc(email).delete()];
+      var u = USERS.find(function (x) { return norm(x.email) === email; });
+      if (u) { u.role = "client"; jobs.push(db.collection("users").doc(u.uid).update({ role: "client" })); }
+      fireChange();
+      return Promise.all(jobs).catch(function (e) { alert(friendly(e)); });
+    },
+    saveProfile: function (email, patch) {
+      email = norm(email);
+      GRANTS[email] = Object.assign({}, GRANTS[email] || {}, patch);
+      fireChange();
+      return db.collection("grants").doc(email).set(patch, { merge: true }).catch(function (e) { alert(friendly(e)); });
     },
     accounts: function () {
-      // merge real users + pending grants (invited, not yet registered)
-      var users = DB.users().slice();
-      var g = DB.grants();
-      Object.keys(g).forEach(function (email) {
-        if (!users.find(function (u) { return u.email === email; }))
-          users.push({ name: "(invited — hasn't created account yet)", email: email, role: g[email], pending: true });
+      var list = USERS.map(function (u) { return { name: u.name, email: norm(u.email), phone: u.phone, role: u.role || "client", uid: u.uid }; });
+      Object.keys(GRANTS).forEach(function (email) {
+        if (!list.find(function (u) { return u.email === email; }))
+          list.push({ name: "(invited — hasn't created account yet)", email: email, role: GRANTS[email].role || "driver", pending: true });
       });
-      return users;
+      return list;
     },
-    profile: function (email) { return DB.profiles()[norm(email)] || {}; },
-    saveProfile: function (email, patch) {
-      var p = DB.profiles(); email = norm(email);
-      p[email] = Object.assign({}, p[email] || {}, patch);
-      DB.saveProfiles(p);
-    },
-    drivers: function () { // all accounts with role driver (or owner acting as driver profile) that are staff
+    profile: function (email) { return GRANTS[norm(email)] || {}; },
+    drivers: function () {
       return AUTH.accounts().filter(function (u) { return u.role === "driver" || u.role === "owner"; })
         .map(function (u) { var pr = AUTH.profile(u.email); return Object.assign({}, u, pr, { active: pr.active !== false }); });
     },
-    require: function (role, next) { // gate a page
-      var me = AUTH.me();
-      if (!me) { location.href = ISV.root + "account/?next=" + encodeURIComponent(next || location.pathname); return null; }
-      if (role === "owner" && me.role !== "owner") { location.href = ISV.root + "account/?denied=owner"; return null; }
-      if (role === "driver" && me.role !== "driver" && me.role !== "owner") { location.href = ISV.root + "account/?denied=driver"; return null; }
-      return me;
+    require: function (role, next) {
+      if (!ME) { location.href = ISV.root + "account/?next=" + encodeURIComponent(next || location.pathname); return null; }
+      if (role === "owner" && ME.role !== "owner") { location.href = ISV.root + "account/?denied=owner"; return null; }
+      if (role === "driver" && ME.role !== "driver" && ME.role !== "owner") { location.href = ISV.root + "account/?denied=driver"; return null; }
+      return ME;
     }
   };
 
   /* ---------------- bookings ---------------- */
+  function newId() { return "IST-" + Math.floor(100000 + Math.random() * 899999); }
   var BOOK = {
-    all: function () { return DB.bookings().sort(function (a, b) { return (a.date || "") < (b.date || "") ? -1 : 1; }); },
-    byId: function (id) { return DB.bookings().find(function (b) { return b.id === id; }); },
+    all: function () { return BOOKINGS.slice(); },
+    byId: function (id) {
+      var b = BOOKINGS.find(function (x) { return x.id === id; });
+      if (b) return b;
+      try { var last = JSON.parse(sessionStorage.getItem("isv_last_booking") || "null"); if (last && last.id === id) return last; } catch (e) {}
+      return null;
+    },
     add: function (b) {
-      var all = DB.bookings();
-      b.id = "IST-" + Math.floor(100000 + Math.random() * 899999);
+      b.id = newId();
       b.created = Date.now();
-      b.status = "New";
-      b.driverEmail = null;
-      b.log = [{ t: Date.now(), text: "Requested online — form submitted with estimate " + ISV.money(b.fare) }];
-      all.push(b); DB.saveBookings(all);
+      b.status = b.status || "New";
+      b.driverEmail = b.driverEmail || null;
+      b.userEmail = b.userEmail ? norm(b.userEmail) : null;
+      b.log = b.log || [{ t: Date.now(), text: "Requested online — form submitted with estimate " + ISV.money(b.fare || 0) }];
+      BOOKINGS.push(b); // optimistic
+      try { sessionStorage.setItem("isv_last_booking", JSON.stringify(b)); } catch (e) {}
+      db.collection("bookings").doc(b.id).set(b).catch(function (e) { alert("Couldn't save the booking: " + friendly(e)); });
+      fireChange();
       return b;
     },
     update: function (id, patch, logText) {
-      var all = DB.bookings(), b = all.find(function (x) { return x.id === id; });
-      if (!b) return;
-      Object.assign(b, patch);
-      if (logText) { b.log = b.log || []; b.log.push({ t: Date.now(), text: logText }); }
-      DB.saveBookings(all);
+      var b = BOOKINGS.find(function (x) { return x.id === id; });
+      if (b) { Object.assign(b, patch); if (logText) { b.log = (b.log || []).concat([{ t: Date.now(), text: logText }]); } }
+      var data = Object.assign({}, patch);
+      if (logText) data.log = FV.arrayUnion({ t: Date.now(), text: logText });
+      db.collection("bookings").doc(id).update(data).catch(function (e) { alert("Couldn't save that change: " + friendly(e)); });
+      fireChange();
     },
-    mine: function (me) { // bookings belonging to a signed-in client
+    importSet: function (docs) { // bulk import/upsert, chunked batches
+      var chunks = [];
+      for (var i = 0; i < docs.length; i += 400) chunks.push(docs.slice(i, i + 400));
+      var chain = Promise.resolve();
+      chunks.forEach(function (chunk) {
+        chain = chain.then(function () {
+          var batch = db.batch();
+          chunk.forEach(function (d) { batch.set(db.collection("bookings").doc(d.id), d, { merge: true }); });
+          return batch.commit();
+        });
+      });
+      return chain;
+    },
+    mine: function (me) {
       if (!me) return [];
       return BOOK.all().filter(function (b) { return b.userEmail === me.email; });
     },
     forDriver: function (email) {
-      return BOOK.all().filter(function (b) { return b.driverEmail === norm(email) && b.status !== "Cancelled"; });
+      email = norm(email);
+      return BOOK.all().filter(function (b) { return b.driverEmail === email && b.status !== "Cancelled"; });
     }
   };
 
   /* ---------------- fare ---------------- */
-  function money(n) { return "$" + Number(n).toFixed(2); }
-  function fare(s) { // s: {tripType, miles, vehicle, addOns:{wait,assist,afterHours}}
+  function money(n) { return "$" + Number(n || 0).toFixed(2); }
+  function fare(s) {
     var round = s.tripType === "round";
     var miles = Number(s.miles || 0) * (round ? 2 : 1);
     var base = round ? C.BASE_ROUND : C.BASE_ONEWAY;
@@ -177,17 +296,20 @@
       '</div></div>';
   }
 
+  function dbBanner() {
+    return DBERROR ? '<div style="background:oklch(0.96 0.03 85);padding:12px 32px;font:500 14px/1.5 Figtree,sans-serif;color:oklch(0.42 0.09 75);text-align:center;">' + DBERROR + '</div>' : '';
+  }
+
   function header(root) {
-    var me = AUTH.me();
     var acct;
-    if (!me) acct = '<a href="' + root + 'account/" style="font:600 15px/1 Figtree,sans-serif;color:oklch(0.42 0.02 250);">Sign in</a>';
+    if (!ME) acct = '<a href="' + root + 'account/" style="font:600 15px/1 Figtree,sans-serif;color:oklch(0.42 0.02 250);">Sign in</a>';
     else {
       var links = '<a href="' + root + 'my-rides/" style="font:600 15px/1 Figtree,sans-serif;color:oklch(0.42 0.02 250);">My rides</a>';
-      if (me.role === "driver") links += '<a href="' + root + 'driver/rides/" style="font:600 15px/1 Figtree,sans-serif;color:oklch(0.42 0.02 250);">Driver console</a>';
-      if (me.role === "owner") links += '<a href="' + root + 'owner/dashboard/" style="font:600 15px/1 Figtree,sans-serif;color:oklch(0.42 0.02 250);">Dispatch console</a>';
+      if (ME.role === "driver") links += '<a href="' + root + 'driver/rides/" style="font:600 15px/1 Figtree,sans-serif;color:oklch(0.42 0.02 250);">Driver console</a>';
+      if (ME.role === "owner") links += '<a href="' + root + 'owner/dashboard/" style="font:600 15px/1 Figtree,sans-serif;color:oklch(0.42 0.02 250);">Dispatch console</a>';
       acct = links;
     }
-    return '<header style="position:sticky;top:0;z-index:20;background:rgba(255,255,255,0.92);backdrop-filter:blur(10px);border-bottom:1px solid oklch(0.93 0.01 250);">' +
+    return dbBanner() + '<header style="position:sticky;top:0;z-index:20;background:rgba(255,255,255,0.92);backdrop-filter:blur(10px);border-bottom:1px solid oklch(0.93 0.01 250);">' +
       '<div style="max-width:1180px;margin:0 auto;padding:0 32px;height:76px;display:flex;align-items:center;justify-content:space-between;gap:24px;">' +
       '<a href="' + root + '" style="color:inherit;">' + logo(38) + '</a>' +
       '<nav style="display:flex;align-items:center;gap:22px;flex-wrap:wrap;">' + acct +
@@ -217,7 +339,7 @@
   }
 
   function sidebar(root, active, sub, items) {
-    var me = AUTH.me() || { name: "", role: "" };
+    var me = ME || { name: "", role: "" };
     var nav = items.map(function (it) {
       var on = it.id === active;
       return '<a href="' + it.href + '" style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-radius:9px;font:500 15px/1 Figtree,sans-serif;' +
@@ -230,11 +352,10 @@
       '<div style="margin-top:auto;display:flex;flex-direction:column;gap:12px;padding:16px;border-radius:12px;background:rgba(255,255,255,0.07);">' +
       '<div style="display:flex;flex-direction:column;gap:2px;"><span style="font:600 14px/1.3 Figtree,sans-serif;color:#fff;">' + (me.name || "") + '</span>' +
       '<span style="font:400 12px/1.3 Figtree,sans-serif;color:rgba(255,255,255,0.55);">' + (me.role === "owner" ? "Owner" : me.role === "driver" ? "Driver" : "") + '</span></div>' +
-      '<button onclick="ISV.auth.signOut();location.href=\'' + root + '\'" style="cursor:pointer;background:none;padding:9px;border:1px solid rgba(255,255,255,0.28);border-radius:8px;font:600 13px/1 Figtree,sans-serif;color:#fff;text-align:center;">Sign out</button>' +
+      '<button onclick="ISV.auth.signOutTo(\'' + root + '\')" style="cursor:pointer;background:none;padding:9px;border:1px solid rgba(255,255,255,0.28);border-radius:8px;font:600 13px/1 Figtree,sans-serif;color:#fff;text-align:center;">Sign out</button>' +
       '</div></aside>';
   }
 
-  /* status pill colors used across consoles */
   function pill(status) {
     var map = {
       "New":       ["oklch(0.95 0.025 237)", "oklch(0.45 0.10 240)"],
@@ -249,23 +370,26 @@
     return '<span style="padding:5px 11px;border-radius:999px;background:' + c[0] + ';font:600 12px/1 Figtree,sans-serif;color:' + c[1] + ';white-space:nowrap;">' + status + '</span>';
   }
 
-  function fmtDate(d) { // "2026-08-03" -> "Aug 3"
-    if (!d) return "—";
+  function fmtDate(d) {
+    if (!d) return "TBD";
     var p = d.split("-"); if (p.length !== 3) return d;
     var mo = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][+p[1] - 1];
     return mo + " " + (+p[2]);
   }
-  function fmtTime(t) { // "10:00" -> "10:00 AM"
-    if (!t) return "—";
+  function fmtTime(t) {
+    if (!t) return "TBD";
     var p = t.split(":"), h = +p[0], m = p[1];
     var ap = h >= 12 ? "PM" : "AM"; h = h % 12; if (h === 0) h = 12;
     return h + ":" + m + " " + ap;
   }
   function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
-  function tripLine(b) { return vehicleShort(b.vehicle) + " · " + (b.tripType === "round" ? "round trip" : "one way") + " · " + b.miles + " mi"; }
+  function tripLine(b) { return vehicleShort(b.vehicle) + " · " + (b.tripType === "round" ? "round trip" : "one way") + " · " + (b.miles || 0) + " mi"; }
 
   window.ISV = {
-    root: "", db: DB, auth: AUTH, book: BOOK,
+    root: "", ready: ready, auth: AUTH, book: BOOK,
+    onChange: function (fn) { changeHandlers.push(fn); },
+    bootstrapped: function () { return BOOTSTRAPPED; },
+    dbError: function () { return DBERROR; },
     money: money, fare: fare, vehicleName: vehicleName, vehicleShort: vehicleShort,
     logo: logo, header: header, footer: footer, sidebar: sidebar, pill: pill,
     fmtDate: fmtDate, fmtTime: fmtTime, esc: esc, tripLine: tripLine

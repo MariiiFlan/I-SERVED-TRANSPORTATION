@@ -32,14 +32,20 @@
 
 <div id="ftr"></div>
 
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
 <script src="../assets/config.js"></script>
 <script src="../assets/app.js"></script>
 <script>
 ISV.root = "../";
+ISV.ready(function(){
 document.getElementById('hdr').innerHTML = ISV.header("../");
 document.getElementById('ftr').innerHTML = ISV.footer("../");
 var t = document.getElementById('pTel');
 t.textContent = CONFIG.PHONE_DISPLAY; t.href = 'tel:' + CONFIG.PHONE_TEL;
+
+});
 </script>
 </body>
 </html>
