@@ -216,18 +216,31 @@
       try { var last = JSON.parse(sessionStorage.getItem("isv_last_booking") || "null"); if (last && last.id === id) return last; } catch (e) {}
       return null;
     },
-    add: function (b) {
+    _prep: function (b) {
       b.id = newId();
       b.created = Date.now();
       b.status = b.status || "New";
       b.driverEmail = b.driverEmail || null;
       b.userEmail = b.userEmail ? norm(b.userEmail) : null;
       b.log = b.log || [{ t: Date.now(), text: "Requested online — form submitted with estimate " + ISV.money(b.fare || 0) }];
-      BOOKINGS.push(b); // optimistic
+      return b;
+    },
+    add: function (b) { // optimistic, used for owner-side seeds
+      BOOK._prep(b);
+      BOOKINGS.push(b);
       try { sessionStorage.setItem("isv_last_booking", JSON.stringify(b)); } catch (e) {}
       db.collection("bookings").doc(b.id).set(b).catch(function (e) { alert("Couldn't save the booking: " + friendly(e)); });
       fireChange();
       return b;
+    },
+    addAsync: function (b) { // waits for the database to CONFIRM before resolving
+      BOOK._prep(b);
+      return db.collection("bookings").doc(b.id).set(b).then(function () {
+        BOOKINGS.push(b);
+        try { sessionStorage.setItem("isv_last_booking", JSON.stringify(b)); } catch (e) {}
+        fireChange();
+        return b;
+      }, function (e) { throw friendly(e); });
     },
     update: function (id, patch, logText) {
       var b = BOOKINGS.find(function (x) { return x.id === id; });
@@ -348,6 +361,7 @@
     }).join('');
     return '<aside style="background:oklch(0.32 0.03 248);padding:24px 18px;display:flex;flex-direction:column;gap:26px;min-height:100vh;">' +
       '<a href="' + root + '" style="padding:0 8px;color:inherit;">' + logo(26, true, sub) + '</a>' +
+      (DBERROR ? '<div style="background:oklch(0.50 0.15 25);color:#fff;padding:10px 12px;border-radius:9px;font:500 12.5px/1.5 Figtree,sans-serif;">' + esc(DBERROR) + '</div>' : '') +
       '<div style="display:flex;flex-direction:column;gap:4px;">' + nav + '</div>' +
       '<div style="margin-top:auto;display:flex;flex-direction:column;gap:12px;padding:16px;border-radius:12px;background:rgba(255,255,255,0.07);">' +
       '<div style="display:flex;flex-direction:column;gap:2px;"><span style="font:600 14px/1.3 Figtree,sans-serif;color:#fff;">' + (me.name || "") + '</span>' +

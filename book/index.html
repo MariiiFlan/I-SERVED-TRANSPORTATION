@@ -224,8 +224,9 @@ document.getElementById('submit').onclick = function(){
   if (!pickup || !dropoff) { err.textContent = "Add a pickup and destination."; return; }
   if (!date) { err.textContent = "Pick a date."; return; }
   if (!name || !phone) { err.textContent = "Add a name and phone so dispatch can confirm."; return; }
+  var btn = this; btn.disabled = true; btn.textContent = "Sending…";
   var f = ISV.fare(S);
-  var b = ISV.book.add({
+  ISV.book.addAsync({
     name:name, phone:phone,
     userEmail: me ? me.email : null,
     pickup:pickup, dropoff:dropoff,
@@ -234,8 +235,12 @@ document.getElementById('submit').onclick = function(){
     pax:document.getElementById('pax').value,
     notes:document.getElementById('notes').value.trim(),
     miles:f.miles, fare:+f.total.toFixed(2)
+  }).then(function(b){
+    location.href = '../confirm/?id=' + b.id;
+  }).catch(function(e){
+    err.textContent = "The booking did NOT save: " + e;
+    btn.disabled = false; btn.textContent = "Request this ride";
   });
-  location.href = '../confirm/?id=' + b.id;
 };
 
 render();
