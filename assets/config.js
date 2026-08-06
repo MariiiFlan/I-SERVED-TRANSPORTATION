@@ -1,16 +1,16 @@
 // ============================================================
-//  I SERVED TRANSPORTATION — SETTINGS
+//  I SERVED TRANSPORTATION - SETTINGS
 //  The only file you edit for contact info + pricing.
 // ============================================================
 window.CONFIG = {
   COMPANY: "I Served Transportation",
   PHONE_DISPLAY: "(757) 806-8218",
   PHONE_TEL: "7578068218",
-  EMAIL: "dispatch@iservedtransportation.com", // placeholder — swap when you have the real one
+  EMAIL: "dispatch@iservedtransportation.com", // placeholder - swap when you have the real one
 
   // ---------------- FIREBASE (live database + logins) ----------------
-  // These keys are safe to be public — security comes from the database
-  // rules (firestore.rules — pasted into the Firebase console once).
+  // These keys are safe to be public - security comes from the database
+  // rules (firestore.rules - pasted into the Firebase console once).
   FIREBASE: {
     apiKey: "AIzaSyDNQDWoXBZOP78-Fjld34wb2uKnC8RyNew",
     authDomain: "iserved.firebaseapp.com",
@@ -38,7 +38,7 @@ window.CONFIG = {
 
   // ---------------- CHECKOUT / PROMO ----------------
   // Online card payments aren't wired yet, so rides only reach the
-  // dashboard through checkout with a valid promo code (testing) —
+  // dashboard through checkout with a valid promo code (testing) -
   // or by phone. Add/remove codes freely:
   PROMO_CODES: ["MARIMACHI06"],
 

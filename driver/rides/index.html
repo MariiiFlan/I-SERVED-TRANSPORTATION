@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>My Rides — I Served Driver</title>
+<title>My Rides - I Served Driver</title>
 <link rel="stylesheet" href="../../assets/base.css">
 <style>body{background:oklch(0.975 0.006 250);}</style>
 </head>
@@ -17,7 +17,7 @@
     </div>
 
     <div class="grid3" style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;">
-      <div class="statcard"><span class="k">Next pickup</span><span class="v" id="stNext">—</span><span class="s" id="stNextSub"></span></div>
+      <div class="statcard"><span class="k">Next pickup</span><span class="v" id="stNext">-</span><span class="s" id="stNextSub"></span></div>
       <div class="statcard"><span class="k">Rides today</span><span class="v" id="stCount">0</span><span class="s" id="stCountSub"></span></div>
       <div class="statcard"><span class="k">Miles today</span><span class="v" id="stMiles">0</span><span class="s">Round trips included</span></div>
     </div>
@@ -79,7 +79,7 @@ function stats(){
     document.getElementById('stNext').textContent = ISV.fmtTime(todays[0].time);
     document.getElementById('stNextSub').textContent = todays[0].name + " · " + (todays[0].pickup.split(",")[1] || todays[0].pickup).trim();
   } else {
-    document.getElementById('stNext').textContent = "—";
+    document.getElementById('stNext').textContent = "-";
     document.getElementById('stNextSub').textContent = "Nothing scheduled";
   }
   var needs = todays.filter(function(b){ return b.status === "Assigned"; }).length;
@@ -129,9 +129,9 @@ function list(){
   });
   document.querySelectorAll('[data-decline]').forEach(function(el){
     el.onclick = function(){
-      var reason = prompt("Send it back to dispatch — what's the reason?");
+      var reason = prompt("Send it back to dispatch - what's the reason?");
       if (reason === null) return;
-      ISV.book.update(this.getAttribute('data-decline'), { status:"New", driverEmail:null }, "Declined by " + me.name + (reason ? " — " + reason : ""));
+      ISV.book.update(this.getAttribute('data-decline'), { status:"New", driverEmail:null }, "Declined by " + me.name + (reason ? " - " + reason : ""));
       refresh();
     };
   });

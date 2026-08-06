@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Import Rides — I Served Dispatch</title>
+<title>Import Rides - I Served Dispatch</title>
 <link rel="stylesheet" href="../../assets/base.css">
 <style>body{background:oklch(0.975 0.006 250);}</style>
 </head>
@@ -18,9 +18,9 @@
 
     <div class="card" style="gap:16px;">
       <p style="margin:0;font:400 15px/1.65 Figtree,sans-serif;color:oklch(0.48 0.015 250);">
-        Drop in a <b>.csv</b> or Excel <b>.xlsx</b> export — like the ride exports from Saferide — and every row becomes a booking on the dashboard.
+        Drop in a <b>.csv</b> or Excel <b>.xlsx</b> export - like the ride exports from Saferide - and every row becomes a booking on the dashboard.
         The importer reads the column headers and figures out what's what (ride ID, status, vehicle, passenger, addresses, dates, and more when the file has them).
-        Rides you've already imported are recognized by their ID and won't duplicate — if their status changed in the new file, it updates.
+        Rides you've already imported are recognized by their ID and won't duplicate - if their status changed in the new file, it updates.
       </p>
       <div id="drop" style="border:2px dashed oklch(0.85 0.03 237);border-radius:14px;padding:44px;text-align:center;cursor:pointer;background:oklch(0.99 0.004 250);">
         <div style="font:600 17px/1.4 Figtree,sans-serif;color:oklch(0.35 0.02 250);">Click to choose a file</div>
@@ -168,7 +168,7 @@ function buildPreview(headers, rows, filename){
   var map = mapHeaders(headers);
   var err = document.getElementById('parseErr'); err.textContent = "";
   if (map.externalId == null && map.name == null && map.pickup == null){
-    err.textContent = "Couldn't recognize the columns in that file. It needs headers like rideId / status / passenger / pickup — send me a sample and I'll teach the importer.";
+    err.textContent = "Couldn't recognize the columns in that file. It needs headers like rideId / status / passenger / pickup - send me a sample and I'll teach the importer.";
     return;
   }
   function cell(r, field){ return map[field] != null ? String(r[map[field]] == null ? "" : r[map[field]]).trim() : ""; }
@@ -184,7 +184,7 @@ function buildPreview(headers, rows, filename){
     var driverRaw = cell(r, "driverRaw");
     var src = cell(r, "source") || filename;
     var noteBits = [];
-    if (st.willCall) noteBits.push("Will-call return — client calls when ready");
+    if (st.willCall) noteBits.push("Will-call return - client calls when ready");
     if (cell(r, "notes")) noteBits.push(cell(r, "notes"));
     if (vehicleRaw && !/unassigned/i.test(vehicleRaw)) noteBits.push("Vehicle in file: " + vehicleRaw);
     if (driverRaw && !/unassigned/i.test(driverRaw)) noteBits.push("Driver in file: " + driverRaw);
@@ -244,7 +244,7 @@ function buildPreview(headers, rows, filename){
   document.getElementById('previewWrap').style.display = docs.length ? "flex" : "none";
   document.getElementById('resultWrap').style.display = "none";
   if (!docs.length){
-    err.textContent = "Everything in that file is already imported and unchanged — nothing to do.";
+    err.textContent = "Everything in that file is already imported and unchanged - nothing to do.";
   }
 }
 
@@ -271,7 +271,7 @@ function handleFile(file){
       var s = document.createElement('script');
       s.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
       s.onload = go;
-      s.onerror = function(){ err.textContent = "Couldn't load the Excel reader — save the file as .csv and try again."; };
+      s.onerror = function(){ err.textContent = "Couldn't load the Excel reader - save the file as .csv and try again."; };
       document.head.appendChild(s);
     }
   } else {

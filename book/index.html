@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Book a Ride — I Served Transportation</title>
+<title>Book a Ride - I Served Transportation</title>
 <link rel="stylesheet" href="../assets/base.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <style>
@@ -63,7 +63,7 @@
             <span id="milesLabel" style="font:700 17px/1 'Barlow Condensed',sans-serif;letter-spacing:0.02em;color:oklch(0.50 0.115 238);"></span>
           </div>
           <input id="miles" type="range" min="2" max="200" step="1" value="12" style="width:100%;">
-          <span id="distanceHint" style="font:400 13px/1.4 Figtree,sans-serif;color:oklch(0.58 0.015 250);">Drag to estimate one-way mileage — or pick both addresses from the suggestions and the route is measured for you.</span>
+          <span id="distanceHint" style="font:400 13px/1.4 Figtree,sans-serif;color:oklch(0.58 0.015 250);">Drag to estimate one-way mileage - or pick both addresses from the suggestions and the route is measured for you.</span>
         </div>
       </div>
 
@@ -118,7 +118,7 @@
           </div>
           <button class="btn" id="submit" style="margin-top:6px;">Continue to checkout</button>
           <span id="formErr" class="err"></span>
-          <span style="font:400 12px/1.5 Figtree,sans-serif;color:oklch(0.58 0.015 250);text-wrap:pretty;">Estimate only — final fare is confirmed by dispatch before pickup. Nothing is charged today.</span>
+          <span style="font:400 12px/1.5 Figtree,sans-serif;color:oklch(0.58 0.015 250);text-wrap:pretty;">Estimate only - final fare is confirmed by dispatch before pickup. Nothing is charged today.</span>
         </div>
       </div>
       <div style="padding:18px 20px;border:1px solid oklch(0.93 0.012 250);border-radius:14px;display:flex;flex-direction:column;gap:7px;background:oklch(0.99 0.004 250);">
@@ -221,7 +221,7 @@ function calc(){
     document.getElementById('distanceTitle').textContent = "Driving distance";
     document.getElementById('distanceHint').innerHTML = 'Measured along the driving route. <a href="#" id="manualMiles">Adjust manually</a>';
     var mm = document.getElementById('manualMiles');
-    if (mm) mm.onclick = function(e){ e.preventDefault(); S.autoMiles = null; document.getElementById('miles').style.display = ""; document.getElementById('distanceTitle').textContent = "Approximate distance"; document.getElementById('distanceHint').textContent = "Drag to estimate one-way mileage — dispatch confirms the exact figure."; calc(); };
+    if (mm) mm.onclick = function(e){ e.preventDefault(); S.autoMiles = null; document.getElementById('miles').style.display = ""; document.getElementById('distanceTitle').textContent = "Approximate distance"; document.getElementById('distanceHint').textContent = "Drag to estimate one-way mileage - dispatch confirms the exact figure."; calc(); };
   } else {
     S.miles = +document.getElementById('miles').value;
     document.getElementById('milesLabel').textContent = S.miles + " mi one way";
@@ -262,9 +262,9 @@ document.getElementById('submit').onclick = function(){
   if (S.coords.pickup) draft.pickupCoords = S.coords.pickup;
   if (S.coords.dropoff) draft.dropoffCoords = S.coords.dropoff;
   if (S.autoMiles != null) draft.routedMiles = true;
-  if (me && me.role === "owner"){ // dispatch books directly — no checkout gate
+  if (me && me.role === "owner"){ // dispatch books directly - no checkout gate
     var btn = this; btn.disabled = true; btn.textContent = "Saving…";
-    draft.log = [{ t: Date.now(), text: "Created by dispatch (" + me.name + ") — estimate " + ISV.money(draft.fare) }];
+    draft.log = [{ t: Date.now(), text: "Created by dispatch (" + me.name + ") - estimate " + ISV.money(draft.fare) }];
     ISV.book.addAsync(draft).then(function(b){
       location.href = '../confirm/?id=' + b.id;
     }).catch(function(e){

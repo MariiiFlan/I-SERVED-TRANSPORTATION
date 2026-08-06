@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Dashboard — I Served Dispatch</title>
+<title>Dashboard - I Served Dispatch</title>
 <link rel="stylesheet" href="../../assets/base.css">
 <style>body{background:oklch(0.975 0.006 250);}</style>
 </head>
@@ -36,7 +36,7 @@
     </div>
 
     <div id="trashBar" style="display:none;align-items:center;justify-content:space-between;gap:14px;padding:14px 18px;border:1px solid oklch(0.90 0.03 25);background:oklch(0.98 0.008 25);border-radius:12px;flex-wrap:wrap;">
-      <span style="font:500 14px/1.5 Figtree,sans-serif;color:oklch(0.45 0.08 25);">Rides in the trash are hidden from every console. Clearing the trash deletes them permanently — there's no undo after that.</span>
+      <span style="font:500 14px/1.5 Figtree,sans-serif;color:oklch(0.45 0.08 25);">Rides in the trash are hidden from every console. Clearing the trash deletes them permanently - there's no undo after that.</span>
       <button class="btn2" id="clearTrash" style="padding:11px 18px;font-size:14px;color:oklch(0.50 0.15 25);border-color:oklch(0.85 0.05 25);">Clear trash permanently</button>
     </div>
     <div style="background:#fff;border:1px solid oklch(0.92 0.012 250);border-radius:14px;overflow:auto;">
@@ -105,7 +105,7 @@ function stats(){
   document.getElementById('stTodaySub').textContent = enr + " en route, " + un + " unassigned";
   document.getElementById('stUn').textContent = unassignedCount();
   document.getElementById('stWeek').textContent = week.length;
-  document.getElementById('stWeekSub').textContent = "Mon–Sun this week";
+  document.getElementById('stWeekSub').textContent = "Mon-Sun this week";
   var rev = week.reduce(function(s,b){ return s + (b.fare||0); }, 0);
   document.getElementById('stRev').textContent = "$" + Math.round(rev).toLocaleString();
 }

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Checkout — I Served Transportation</title>
+<title>Checkout - I Served Transportation</title>
 <link rel="stylesheet" href="../assets/base.css">
 </head>
 <body>
@@ -13,7 +13,7 @@
   <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:32px;">
     <span class="kicker">Almost there</span>
     <h1 style="margin:0;font:700 46px/1.05 'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:0.01em;">Checkout</h1>
-    <p style="margin:0;font:400 17px/1.6 Figtree,sans-serif;color:oklch(0.50 0.015 250);">Your ride isn't requested yet — it's sent to dispatch when checkout is completed.</p>
+    <p style="margin:0;font:400 17px/1.6 Figtree,sans-serif;color:oklch(0.50 0.015 250);">Your ride isn't requested yet - it's sent to dispatch when checkout is completed.</p>
   </div>
 
   <div class="booking-grid" style="display:grid;grid-template-columns:1fr 0.85fr;gap:28px;align-items:start;">
@@ -50,7 +50,7 @@
         <!-- OWNER NOTE: when Stripe/PayPal is ready, the live payment button
              replaces this block. Everything downstream already works. -->
         <div style="padding:12px 14px;border-radius:10px;background:oklch(0.97 0.012 237);font:500 13.5px/1.55 Figtree,sans-serif;color:oklch(0.42 0.04 243);">
-          Online card payment isn't switched on yet. Book by phone at <a id="payTel" href="#"></a> — or use a promo code below.
+          Online card payment isn't switched on yet. Book by phone at <a id="payTel" href="#"></a> - or use a promo code below.
         </div>
       </div>
 
@@ -63,7 +63,7 @@
         <span id="promoMsg" style="font:500 14px/1.5 Figtree,sans-serif;"></span>
         <button class="btn" id="complete" disabled style="opacity:0.45;cursor:default;">Complete booking</button>
         <span id="completeErr" class="err"></span>
-        <span style="font:400 12.5px/1.55 Figtree,sans-serif;color:oklch(0.58 0.015 250);">Completing checkout sends the request to dispatch. Nothing is charged today either way — the fare is confirmed before pickup.</span>
+        <span style="font:400 12.5px/1.55 Figtree,sans-serif;color:oklch(0.58 0.015 250);">Completing checkout sends the request to dispatch. Nothing is charged today either way - the fare is confirmed before pickup.</span>
       </div>
     </div>
   </div>
@@ -119,7 +119,7 @@ function setComplete(on){
   completeBtn.disabled = !on;
   completeBtn.style.opacity = on ? "1" : "0.45";
   completeBtn.style.cursor = on ? "pointer" : "default";
-  completeBtn.textContent = on ? "Complete booking — promo applied" : "Complete booking";
+  completeBtn.textContent = on ? "Complete booking - promo applied" : "Complete booking";
 }
 
 document.getElementById('applyPromo').onclick = function(){
@@ -128,7 +128,7 @@ document.getElementById('applyPromo').onclick = function(){
   var valid = (CONFIG.PROMO_CODES || []).map(function(c){ return String(c).toUpperCase(); }).indexOf(code) > -1;
   if (valid){
     appliedPromo = code;
-    msg.textContent = "Code " + code + " applied — checkout unlocked.";
+    msg.textContent = "Code " + code + " applied - checkout unlocked.";
     msg.style.color = "oklch(0.42 0.10 160)";
     setComplete(true);
   } else {
@@ -145,7 +145,7 @@ completeBtn.onclick = function(){
   var err = document.getElementById('completeErr'); err.textContent = "";
   completeBtn.disabled = true; completeBtn.textContent = "Sending…";
   var b = Object.assign({}, draft, { promo: appliedPromo });
-  b.log = [{ t: Date.now(), text: "Booked online with promo code " + appliedPromo + " — no charge (estimate " + ISV.money(b.fare) + ")" }];
+  b.log = [{ t: Date.now(), text: "Booked online with promo code " + appliedPromo + " - no charge (estimate " + ISV.money(b.fare) + ")" }];
   ISV.book.addAsync(b).then(function(saved){
     try { sessionStorage.removeItem('isv_checkout_draft'); } catch(e){}
     location.href = '../confirm/?id=' + saved.id;

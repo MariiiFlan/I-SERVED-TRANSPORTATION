@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Team — I Served Dispatch</title>
+<title>Team - I Served Dispatch</title>
 <link rel="stylesheet" href="../../assets/base.css">
 <style>body{background:oklch(0.975 0.006 250);}</style>
 </head>
@@ -67,7 +67,7 @@
 
     <div class="card" style="gap:10px;">
       <span style="font:700 14px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.45 0.02 250);">All client accounts</span>
-      <span style="font:400 14px/1.6 Figtree,sans-serif;color:oklch(0.52 0.015 250);">Everyone who has created an account. Promote any of them with the form above — just use their email.</span>
+      <span style="font:400 14px/1.6 Figtree,sans-serif;color:oklch(0.52 0.015 250);">Everyone who has created an account. Promote any of them with the form above - just use their email.</span>
       <div id="clientRows" style="display:flex;flex-direction:column;"></div>
     </div>
   </main>
@@ -117,7 +117,7 @@ document.getElementById('saveMember').onclick = function(){
     });
   }
   var existing = ISV.auth.accounts().find(function(u){ return u.email === email && !u.pending; });
-  ok.textContent = existing ? "Done — " + email + " is now a " + role + "." : "Saved — " + role + " access is waiting for " + email + " when they create their account.";
+  ok.textContent = existing ? "Done - " + email + " is now a " + role + "." : "Saved - " + role + " access is waiting for " + email + " when they create their account.";
   document.getElementById('fEmail').value = "";
   render();
 };
@@ -131,18 +131,18 @@ function render(){
     return '<tr>'+
       '<td><div style="font:600 14.5px/1.4 Figtree,sans-serif;">'+ISV.esc(u.name)+(isMe?' <span style="font:600 11px/1 Figtree,sans-serif;color:oklch(0.55 0.015 250);">(you)</span>':'')+'</div>'+
       '<div style="font:400 13px/1.4 Figtree,sans-serif;color:oklch(0.55 0.015 250);">'+ISV.esc(u.email)+(p.phone?' · '+ISV.esc(p.phone):'')+'</div>'+
-      (u.pending ? '<div style="margin-top:4px;"><span style="font:600 11px/1 Figtree,sans-serif;color:oklch(0.55 0.13 60);background:oklch(0.97 0.03 85);padding:4px 9px;border-radius:999px;">Invited — no account yet</span></div>' : '')+'</td>'+
+      (u.pending ? '<div style="margin-top:4px;"><span style="font:600 11px/1 Figtree,sans-serif;color:oklch(0.55 0.13 60);background:oklch(0.97 0.03 85);padding:4px 9px;border-radius:999px;">Invited - no account yet</span></div>' : '')+'</td>'+
       '<td><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'+
         '<span style="padding:5px 11px;border-radius:999px;background:'+(u.role==="owner"?'oklch(0.32 0.03 248)':'oklch(0.95 0.025 237)')+';font:600 12px/1 Figtree,sans-serif;color:'+(u.role==="owner"?'#fff':'oklch(0.45 0.10 240)')+';">'+(u.role==="owner"?'Owner':'Driver')+'</span>'+
         (u.role==="driver" && !active ? '<span style="padding:5px 11px;border-radius:999px;background:oklch(0.95 0.008 250);font:600 12px/1 Figtree,sans-serif;color:oklch(0.50 0.015 250);">Inactive</span>' : '')+
       '</div>'+(u.role==="driver" && p.vehicle ? '<div style="font:400 13px/1.5 Figtree,sans-serif;color:oklch(0.55 0.015 250);margin-top:4px;">'+ISV.esc(p.vehicle)+'</div>' : '')+'</td>'+
-      '<td style="font:400 13.5px/1.5 Figtree,sans-serif;color:oklch(0.45 0.015 250);">'+ISV.esc(p.cred || "—")+'</td>'+
-      '<td style="font:600 13.5px/1.5 Figtree,sans-serif;">'+(u.role==="driver" || u.role==="owner" ? weekCount(u.email) + " rides" : "—")+'</td>'+
+      '<td style="font:400 13.5px/1.5 Figtree,sans-serif;color:oklch(0.45 0.015 250);">'+ISV.esc(p.cred || "-")+'</td>'+
+      '<td style="font:600 13.5px/1.5 Figtree,sans-serif;">'+(u.role==="driver" || u.role==="owner" ? weekCount(u.email) + " rides" : "-")+'</td>'+
       '<td><div style="display:flex;gap:8px;flex-wrap:wrap;">'+
         (u.role === "driver" ? '<button class="chip" data-act="toggle" data-email="'+ISV.esc(u.email)+'">'+(active?'Deactivate':'Activate')+'</button>' : '')+
         (!isMe ? '<button class="chip" data-act="remove" data-email="'+ISV.esc(u.email)+'" style="color:oklch(0.50 0.15 25);">Remove access</button>' : '')+
       '</div></td></tr>';
-  }).join('') || '<tr><td colspan="5" style="text-align:center;padding:36px;color:oklch(0.55 0.015 250);">No team members yet — add a driver above.</td></tr>';
+  }).join('') || '<tr><td colspan="5" style="text-align:center;padding:36px;color:oklch(0.55 0.015 250);">No team members yet - add a driver above.</td></tr>';
 
   document.querySelectorAll('[data-act="toggle"]').forEach(function(el){
     el.onclick = function(){

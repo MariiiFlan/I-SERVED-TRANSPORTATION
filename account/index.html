@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Account — I Served Transportation</title>
+<title>Account - I Served Transportation</title>
 <link rel="stylesheet" href="../assets/base.css">
 </head>
 <body>
@@ -15,7 +15,7 @@
 
       <div style="display:flex;flex-direction:column;gap:8px;">
         <h1 id="title" style="margin:0;font:700 38px/1.05 'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:0.01em;">Sign in</h1>
-        <p id="subtitle" style="margin:0;font:400 15px/1.6 Figtree,sans-serif;color:oklch(0.50 0.015 250);">One account for everything — booking rides, driving, or running dispatch.</p>
+        <p id="subtitle" style="margin:0;font:400 15px/1.6 Figtree,sans-serif;color:oklch(0.50 0.015 250);">One account for everything - booking rides, driving, or running dispatch.</p>
       </div>
 
       <div id="notice" style="display:none;padding:13px 16px;border-radius:10px;background:oklch(0.96 0.03 85);font:500 14px/1.5 Figtree,sans-serif;color:oklch(0.42 0.09 75);"></div>
@@ -32,7 +32,7 @@
         </div>
         <button class="btn" id="siGo">Sign in</button>
         <span id="siErr" class="err"></span>
-        <span style="font:400 14px/1.6 Figtree,sans-serif;color:oklch(0.52 0.015 250);">New here? <a href="#" id="showCreate">Create an account</a> — it takes 30 seconds.</span>
+        <span style="font:400 14px/1.6 Figtree,sans-serif;color:oklch(0.52 0.015 250);">New here? <a href="#" id="showCreate">Create an account</a> - it takes 30 seconds.</span>
       </div>
 
       <!-- CREATE -->
@@ -74,7 +74,7 @@
       <div style="display:flex;flex-direction:column;gap:14px;">
         <div style="display:flex;gap:12px;align-items:flex-start;"><span style="font:700 16px/1.4 'Barlow Condensed',sans-serif;color:oklch(0.80 0.08 237);">01</span><span style="font:400 15px/1.55 Figtree,sans-serif;color:rgba(255,255,255,0.82);"><b style="color:#fff;">Clients</b> see every ride they've booked and its status.</span></div>
         <div style="display:flex;gap:12px;align-items:flex-start;"><span style="font:700 16px/1.4 'Barlow Condensed',sans-serif;color:oklch(0.80 0.08 237);">02</span><span style="font:400 15px/1.55 Figtree,sans-serif;color:rgba(255,255,255,0.82);"><b style="color:#fff;">Drivers</b> get their assigned rides the moment dispatch taps their name.</span></div>
-        <div style="display:flex;gap:12px;align-items:flex-start;"><span style="font:700 16px/1.4 'Barlow Condensed',sans-serif;color:oklch(0.80 0.08 237);">03</span><span style="font:400 15px/1.55 Figtree,sans-serif;color:rgba(255,255,255,0.82);"><b style="color:#fff;">The owner</b> sees everything and decides who's a driver or an owner — by email, from the Team page.</span></div>
+        <div style="display:flex;gap:12px;align-items:flex-start;"><span style="font:700 16px/1.4 'Barlow Condensed',sans-serif;color:oklch(0.80 0.08 237);">03</span><span style="font:400 15px/1.55 Figtree,sans-serif;color:rgba(255,255,255,0.82);"><b style="color:#fff;">The owner</b> sees everything and decides who's a driver or an owner - by email, from the Team page.</span></div>
       </div>
     </div>
   </div>
@@ -107,7 +107,7 @@ if (denied){
   n.style.display = "block";
   n.innerHTML = (denied === "owner"
     ? "That page is for owner accounts. You're signed in as " + (me ? ISV.esc(me.email) + " (" + me.role + ")" : "no one") + ". Ask the owner to grant your email owner access from the Team page."
-    : "That page is for driver accounts. Ask the owner to add your email as a driver from the Team page — then it unlocks automatically.")
+    : "That page is for driver accounts. Ask the owner to add your email as a driver from the Team page - then it unlocks automatically.")
     + (me ? ' <a href="#" id="noticeOut">Sign out</a> to use a different account.' : '');
   var no = document.getElementById('noticeOut');
   if (no) no.onclick = function(e){ e.preventDefault(); ISV.auth.signOutTo("./"); };
@@ -119,7 +119,7 @@ if (denied){
 if (!ISV.bootstrapped()){
   var n2 = document.getElementById('notice');
   n2.style.display = "block";
-  n2.textContent = "No accounts exist yet — the first account created becomes the Owner account.";
+  n2.textContent = "No accounts exist yet - the first account created becomes the Owner account.";
   document.getElementById('signinForm').style.display = "none";
   document.getElementById('createForm').style.display = "flex";
   document.getElementById('title').textContent = "Create the first account";

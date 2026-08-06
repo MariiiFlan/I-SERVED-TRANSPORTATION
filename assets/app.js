@@ -1,5 +1,5 @@
 /* ============================================================
-   I SERVED TRANSPORTATION — core (Firebase edition)
+   I SERVED TRANSPORTATION - core (Firebase edition)
    Accounts = Firebase Authentication (email/password).
    Data     = Cloud Firestore, live-synced across every device.
    Pages read from an in-memory cache that Firestore keeps fresh
@@ -29,12 +29,12 @@
   function fireChange() { changeHandlers.forEach(function (f) { try { f(); } catch (e) {} }); }
   function friendly(e) {
     var code = (e && e.code) || "";
-    if (code.indexOf("permission-denied") > -1) return "The database security rules aren't installed yet — open README.txt and do the 'PASTE THE DATABASE RULES' step (2 minutes).";
-    if (code.indexOf("email-already-in-use") > -1) return "An account with that email already exists — sign in instead.";
+    if (code.indexOf("permission-denied") > -1) return "The database security rules aren't installed yet - open README.txt and do the 'PASTE THE DATABASE RULES' step (2 minutes).";
+    if (code.indexOf("email-already-in-use") > -1) return "An account with that email already exists - sign in instead.";
     if (code.indexOf("invalid-credential") > -1 || code.indexOf("wrong-password") > -1 || code.indexOf("user-not-found") > -1) return "Email or password doesn't match an account.";
     if (code.indexOf("weak-password") > -1) return "Password needs at least 6 characters.";
     if (code.indexOf("invalid-email") > -1) return "That email doesn't look right.";
-    if (code.indexOf("network") > -1) return "Network problem — check the connection and try again.";
+    if (code.indexOf("network") > -1) return "Network problem - check the connection and try again.";
     if (code === "timeout") return "The database connection is being blocked on this network (ad blockers and some wifi networks do this). Try turning off the ad blocker for this site, or a different network.";
     return (e && e.message) || String(e);
   }
@@ -331,7 +331,7 @@
       var list = USERS.map(function (u) { return { name: u.name, email: norm(u.email), phone: u.phone, role: u.role || "client", uid: u.uid }; });
       Object.keys(GRANTS).forEach(function (email) {
         if (!list.find(function (u) { return u.email === email; }))
-          list.push({ name: "(invited — hasn't created account yet)", email: email, role: GRANTS[email].role || "driver", pending: true });
+          list.push({ name: "(invited - hasn't created account yet)", email: email, role: GRANTS[email].role || "driver", pending: true });
       });
       return list;
     },
@@ -380,7 +380,7 @@
       b.status = b.status || "New";
       b.driverEmail = b.driverEmail || null;
       b.userEmail = b.userEmail ? norm(b.userEmail) : null;
-      b.log = b.log || [{ t: Date.now(), text: "Requested online — form submitted with estimate " + ISV.money(b.fare || 0) }];
+      b.log = b.log || [{ t: Date.now(), text: "Requested online - form submitted with estimate " + ISV.money(b.fare || 0) }];
       return b;
     },
     add: function (b) { // optimistic, used for owner-side seeds
