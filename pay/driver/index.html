@@ -1,0 +1,17 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Driver - I Served Transportation</title>
+<link rel="icon" href="../favicon.ico" sizes="any">
+<link rel="icon" type="image/png" href="../images/favicon-32.png">
+<link rel="apple-touch-icon" href="../images/favicon-180.png">
+</head><body>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+<script src="../assets/config.js"></script><script src="../assets/app.js"></script>
+<script>
+ISV.ready(function(){
+  var me = ISV.auth.me();
+  if (me && (me.role === "driver" || me.role === "owner")) location.replace("rides/");
+  else location.replace("../account/?next=/driver/rides/" + (me ? "&denied=driver" : ""));
+});
+</script></body></html>

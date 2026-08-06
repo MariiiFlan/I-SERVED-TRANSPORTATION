@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Import Rides - I Served Dispatch</title>
+<link rel="icon" href="../../favicon.ico" sizes="any">
+<link rel="icon" type="image/png" href="../../images/favicon-32.png">
+<link rel="apple-touch-icon" href="../../images/favicon-180.png">
+
+<link rel="stylesheet" href="../../assets/base.css">
+<style>body{background:oklch(0.975 0.006 250);}</style>
+</head>
+<body>
+<div class="console">
+  <div id="side"></div>
+  <main>
+    <div style="display:flex;flex-direction:column;gap:6px;">
+      <span class="kicker" style="letter-spacing:0.16em;font-size:11px;">Bring rides in from a spreadsheet</span>
+      <h2 style="margin:0;font:700 34px/1.05 'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:0.01em;">Import rides</h2>
+    </div>
+
+    <div class="card" style="gap:16px;">
+      <p style="margin:0;font:400 15px/1.65 Figtree,sans-serif;color:oklch(0.48 0.015 250);">
+        Drop in a <b>.csv</b> or Excel <b>.xlsx</b> export - like the ride exports from Saferide - and every row becomes a booking on the dashboard.
+        The importer reads the column headers and figures out what's what (ride ID, status, vehicle, passenger, addresses, dates, and more when the file has them).
+        Rides you've already imported are recognized by their ID and won't duplicate - if their status changed in the new file, it updates.
+      </p>
+      <div id="drop" style="border:2px dashed oklch(0.85 0.03 237);border-radius:14px;padding:44px;text-align:center;cursor:pointer;background:oklch(0.99 0.004 250);">
+        <div style="font:600 17px/1.4 Figtree,sans-serif;color:oklch(0.35 0.02 250);">Click to choose a file</div>
+        <div style="font:400 14px/1.5 Figtree,sans-serif;color:oklch(0.55 0.015 250);">or drag it onto this box · .csv or .xlsx</div>
+      </div>
+      <input id="file" type="file" accept=".csv,.xlsx,.xls,text/csv" style="display:none;">
+      <span id="parseErr" class="err"></span>
+    </div>
+
+    <div id="previewWrap" style="display:none;flex-direction:column;gap:16px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+        <div style="display:flex;flex-direction:column;gap:4px;">
+          <span style="font:700 15px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.45 0.02 250);">Preview</span>
+          <span id="previewSummary" style="font:400 14px/1.5 Figtree,sans-serif;color:oklch(0.52 0.015 250);"></span>
+        </div>
+        <button class="btn" id="doImport" style="padding:14px 24px;font-size:15px;">Import these rides</button>
+      </div>
+      <div style="background:#fff;border:1px solid oklch(0.92 0.012 250);border-radius:14px;overflow:auto;max-height:480px;">
+        <table class="tbl" style="min-width:820px;">
+          <thead><tr><th>ID</th><th>Passenger</th><th>Trip</th><th>Date</th><th>Vehicle</th><th>Status</th><th></th></tr></thead>
+          <tbody id="previewRows"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="resultWrap" style="display:none;" class="card">
+      <span style="font:700 15px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.45 0.02 250);">Done</span>
+      <span id="resultLine" style="font:500 16px/1.6 Figtree,sans-serif;color:oklch(0.35 0.02 250);"></span>
+      <div><a class="btn" href="../dashboard/" style="padding:13px 22px;font-size:15px;display:inline-block;">See them on the dashboard</a></div>
+    </div>
+  </main>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+<script src="../../assets/config.js"></script>
+<script src="../../assets/app.js"></script>
+<script>
+ISV.root = "../../";
+ISV.ready(function(){
+var me = ISV.auth.require("owner", "/owner/import/");
+if (!me) return;
+
+document.getElementById('side').innerHTML = ISV.sidebar("../../", "dash", "Dispatch console", [
+  { id:"dash", label:"Dashboard", href:"../dashboard/" },
+  { id:"sched", label:"Schedules", href:"../schedules/" },
+  { id:"team", label:"Team", href:"../team/" },
+  { id:"rep",  label:"Reports", href:"../reports/" }
+]);
+
+/* ---------- parsing ---------- */
+function parseCSV(text){
+  var rows = [], row = [], cur = "", inQ = false;
+  text = text.replace(/^\uFEFF/, "");
+  for (var i = 0; i < text.length; i++){
+    var ch = text[i];
+    if (inQ){
+      if (ch === '"'){ if (text[i+1] === '"'){ cur += '"'; i++; } else inQ = false; }
+      else cur += ch;
+    } else {
+      if (ch === '"') inQ = true;
+      else if (ch === ',') { row.push(cur); cur = ""; }
+      else if (ch === '\n' || ch === '\r'){
+        if (ch === '\r' && text[i+1] === '\n') i++;
+        row.push(cur); cur = "";
+        if (row.length > 1 || row[0] !== "") rows.push(row);
+        row = [];
+      }
+      else cur += ch;
+    }
+  }
+  if (cur !== "" || row.length) { row.push(cur); rows.push(row); }
+  return rows;
+}
+
+// which spreadsheet column feeds which booking field
+var ALIASES = {
+  externalId: ["tripid","trip id","rideid","ride id","id","triplegid","confirmation","confirmation number","reference"],
+  status:     ["status","ride status","trip status"],
+  name:       ["membername","member name","name","passenger","passenger name","client","client name","member","patient","patient name","rider"],
+  memberId:   ["memberid","member id","member#"],
+  age:        ["memberage","member age","age"],
+  tripLeg:    ["triptype","trip type","leg","direction","legtype"],
+  phone:      ["pickupphone","pick up phone","phone","phone number","member phone","passenger phone","contact"],
+  dropPhone:  ["dropoffphone","drop off phone","drop-off phone"],
+  puName:     ["pickupaddressname","pick up address name","pickup name","pickup location","origin name"],
+  puStreet:   ["pickupstreet","pick up street","pickup address","pickup","origin","origin address","from","from address","pu address"],
+  puCity:     ["pickupcity","pick up city","pickup city","origin city"],
+  puState:    ["pickupstate","pick up state","pickup state","origin state"],
+  puZip:      ["pickupzip","pick up zip","pickup zip","origin zip","pickup postal"],
+  puNotes:    ["pickupnotes","pick up notes","pickup notes","origin notes"],
+  doName:     ["dropoffaddressname","drop off address name","dropoff name","destination name"],
+  doStreet:   ["dropoffstreet","drop off street","dropoff address","dropoff","drop-off","destination","destination address","to","to address","do address"],
+  doCity:     ["dropoffcity","drop off city","dropoff city","destination city"],
+  doState:    ["dropoffstate","drop off state","dropoff state","destination state"],
+  doZip:      ["dropoffzip","drop off zip","dropoff zip","destination zip"],
+  doNotes:    ["dropoffnotes","drop off notes","dropoff notes","destination notes"],
+  puTime:     ["pickuptime","pick up time","pickup time","date","pickup date","appointment date","trip date","ride date","service date","time"],
+  doTime:     ["dropofftime","drop off time","dropoff time","appointment time","arrival time"],
+  miles:      ["miles","mileage","distance","trip miles","estimated miles"],
+  fare:       ["fare","price","cost","amount","rate","total","payout"],
+  mobility:   ["mobilitytype","mobility type","los","level of service","service level","vehicle","vehiclename","vehicle name","vehicle type"],
+  driverRaw:  ["driver","drivername","driver name","assigned driver"],
+  payor:      ["payor","payer","insurance","plan","funding source"],
+  broker:     ["mediroutesclient","fulfilledby","fulfilled by","broker","source","account"],
+  escorts:    ["escorts","escort"],
+  attendants: ["attendants","attendant"],
+  carSeats:   ["carseats","car seats","car seat"],
+  claimNote:  ["claimnote","claim note","claimstatus","claim status"],
+  notes:      ["notes","comments","remarks","special instructions","instructions"]
+};
+function mapHeaders(headers){
+  var map = {};
+  headers.forEach(function(h, idx){
+    var k = String(h).trim().toLowerCase().replace(/[\s_\-#]/g, "");
+    for (var field in ALIASES){
+      if (map[field] == null && ALIASES[field].some(function(al){ return al.replace(/[\s_\-#]/g,"") === k; })) map[field] = idx;
+    }
+  });
+  return map;
+}
+function mapStatus(raw){
+  var s = String(raw || "").toLowerCase().replace(/[^a-z]/g, "");
+  if (!s) return { status:"New" };
+  if (s.indexOf("willcall") > -1) return { status:"New", willCall:true };
+  if (s.indexOf("cancel") > -1) return { status:"Cancelled" };
+  if (s.indexOf("complet") > -1 || s === "done" || s.indexOf("finish") > -1) return { status:"Completed" };
+  if (s.indexOf("pickedup") > -1 || s.indexOf("arrived") > -1 || s.indexOf("onboard") > -1) return { status:"Picked up" };
+  if (s.indexOf("progress") > -1 || s.indexOf("enroute") > -1 || s.indexOf("ontheway") > -1) return { status:"En route" };
+  if (s.indexOf("assign") > -1 && s.indexOf("unassign") === -1) return { status:"Assigned" };
+  return { status:"New" };
+}
+// MobilityType / vehicle text -> our vehicle + service type
+function mapMobility(raw){
+  var s = String(raw || "").toLowerCase();
+  if (/wheelchair|wav|\bwc\b/.test(s)) return { vehicle:"wav", service:"wheelchair" };
+  if (/stretcher|gurney/.test(s))        return { vehicle:"wav", service:"other" };
+  if (/\bamb\b|ambulatory/.test(s))     return { vehicle:"sedan", service:"ambulatory" };
+  if (/suv|van/.test(s))                 return { vehicle:"suv", service:"ambulatory" };
+  return { vehicle:"sedan", service:"ambulatory" };
+}
+// TripType A = to the appointment (pick up), B = return (drop off)
+function mapLeg(raw){
+  var s = String(raw || "").trim().toUpperCase();
+  if (s === "A") return { legLabel:"Leg A - to appointment", tripType:"oneway" };
+  if (s === "B") return { legLabel:"Leg B - return home", tripType:"oneway" };
+  if (/ROUND/i.test(raw || "")) return { legLabel:"", tripType:"round" };
+  return { legLabel:"", tripType:"oneway" };
+}
+function mapDate(raw){
+  var s = String(raw || "").trim();
+  if (!s) return { date:"", time:"" };
+  var time = "";
+  var tm = s.match(/(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)?/i);
+  if (tm){
+    var h = +tm[1], mi = tm[2];
+    if (tm[3]){ var pm = /pm/i.test(tm[3]); if (pm && h < 12) h += 12; if (!pm && h === 12) h = 0; }
+    time = String(h).padStart(2, "0") + ":" + mi;
+  }
+  var m = s.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return { date: m[1] + "-" + m[2].padStart(2,"0") + "-" + m[3].padStart(2,"0"), time: time };
+  m = s.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);   // MM-DD-YYYY or MM/DD/YY
+  if (m){
+    var y = m[3].length === 2 ? "20" + m[3] : m[3];
+    return { date: y + "-" + m[1].padStart(2,"0") + "-" + m[2].padStart(2,"0"), time: time };
+  }
+  return { date:"", time: time };
+}
+function joinAddress(name, street, city, state, zip){
+  var line = [street, city, [state, zip].filter(Boolean).join(" ")].map(function(x){ return String(x||"").trim(); }).filter(Boolean).join(", ");
+  var nm = String(name||"").trim();
+  if (nm && !/^residence$/i.test(nm) && line) return nm + ", " + line;
+  return line || nm;
+}
+
+var PENDING = null; // {docs, updates, skips}
+
+function buildPreview(headers, rows, filename){
+  var map = mapHeaders(headers);
+  var err = document.getElementById('parseErr'); err.textContent = "";
+  if (map.externalId == null && map.name == null && map.pickup == null){
+    err.textContent = "Couldn't recognize the columns in that file. It needs headers like rideId / status / passenger / pickup - send me a sample and I'll teach the importer.";
+    return;
+  }
+  function cell(r, field){ return map[field] != null ? String(r[map[field]] == null ? "" : r[map[field]]).trim() : ""; }
+
+  var docs = [], updates = 0, skips = 0, cancelled = 0;
+  rows.forEach(function(r){
+    if (!r.join("").trim()) return;
+    var extId = cell(r, "externalId");
+    var st = mapStatus(cell(r, "status"));
+    var pu = mapDate(cell(r, "puTime"));
+    var doT = mapDate(cell(r, "doTime"));
+    var mob = mapMobility(cell(r, "mobility"));
+    var leg = mapLeg(cell(r, "tripLeg"));
+    var pickup = joinAddress(cell(r,"puName"), cell(r,"puStreet"), cell(r,"puCity"), cell(r,"puState"), cell(r,"puZip"));
+    var dropoff = joinAddress(cell(r,"doName"), cell(r,"doStreet"), cell(r,"doCity"), cell(r,"doState"), cell(r,"doZip"));
+    var broker = cell(r, "broker");
+    var payor = cell(r, "payor");
+
+    var noteBits = [];
+    if (leg.legLabel) noteBits.push(leg.legLabel);
+    if (st.willCall) noteBits.push("Will-call return - client calls when ready");
+    if (cell(r,"puNotes")) noteBits.push("Pickup notes: " + cell(r,"puNotes").replace(/\s*\n+\s*/g, " "));
+    var dn = cell(r,"doNotes");
+    if (dn && dn !== cell(r,"puNotes")) noteBits.push("Drop-off notes: " + dn.replace(/\s*\n+\s*/g, " "));
+    if (doT.time) noteBits.push("Appointment / drop-off time: " + ISV.fmtTime(doT.time));
+    if (cell(r,"dropPhone") && cell(r,"dropPhone") !== cell(r,"phone")) noteBits.push("Drop-off phone: " + cell(r,"dropPhone"));
+    if (cell(r,"memberId")) noteBits.push("Member ID: " + cell(r,"memberId"));
+    if (cell(r,"age")) noteBits.push("Age: " + cell(r,"age"));
+    if (cell(r,"escorts") && cell(r,"escorts") !== "0") noteBits.push("Escorts: " + cell(r,"escorts"));
+    if (cell(r,"attendants") && cell(r,"attendants") !== "0") noteBits.push("Attendants: " + cell(r,"attendants"));
+    if (cell(r,"carSeats") && cell(r,"carSeats") !== "0") noteBits.push("Car seats: " + cell(r,"carSeats"));
+    if (cell(r,"mobility")) noteBits.push("Mobility: " + cell(r,"mobility"));
+    if (cell(r,"claimNote")) noteBits.push("Claim: " + cell(r,"claimNote"));
+    if (cell(r,"driverRaw") && !/unassigned/i.test(cell(r,"driverRaw"))) noteBits.push("Driver in file: " + cell(r,"driverRaw"));
+    if (cell(r,"notes")) noteBits.push(cell(r,"notes"));
+
+    var pax = 1 + (parseInt(cell(r,"escorts"),10)||0) + (parseInt(cell(r,"attendants"),10)||0);
+
+    var doc = {
+      id: extId ? "SR-" + extId : ("IST-" + Math.floor(100000 + Math.random()*899999)),
+      externalId: extId || null,
+      source: broker || filename,
+      payor: payor || broker || "",
+      broker: broker || "",
+      memberId: cell(r,"memberId") || "",
+      legType: String(cell(r,"tripLeg")||"").trim().toUpperCase() || "",
+      name: cell(r, "name") || (extId ? "Trip #" + extId : "Imported ride"),
+      phone: cell(r, "phone"),
+      pickup: pickup || "See broker portal",
+      dropoff: dropoff || "See broker portal",
+      pickupNotes: cell(r,"puNotes") || "",
+      dropoffNotes: dn || "",
+      dropoffTime: doT.time || "",
+      date: pu.date, time: pu.time,
+      tripType: leg.tripType,
+      vehicle: mob.vehicle,
+      service: mob.service,
+      willCall: !!st.willCall,
+      addOns: { wait:false, assist:false, afterHours:false },
+      pax: String(Math.max(1, pax)),
+      notes: noteBits.join(" | "),
+      miles: parseFloat(cell(r, "miles")) || 0,
+      fare: parseFloat(String(cell(r, "fare")).replace(/[$,]/g, "")) || 0,
+      status: st.status,
+      driverEmail: null,
+      userEmail: null,
+      created: Date.now(),
+      log: [{ t: Date.now(), text: "Imported from " + filename + (payor ? " - payor " + payor : "") }]
+    };
+    if (!doc.fare && doc.miles){
+      var calc = ISV.fare({ vehicle: doc.vehicle, miles: doc.miles, tripType: doc.tripType, addOns: doc.addOns });
+      doc.fare = +calc.total.toFixed(2);
+    }
+    if (st.status === "Cancelled") cancelled++;
+
+    var existing = ISV.book.byId(doc.id);
+    if (existing){
+      if (existing.status !== doc.status){
+        docs.push({ id: doc.id, status: doc.status, log: existing.log ? existing.log.concat([{ t: Date.now(), text: "Status updated to " + doc.status + " from re-import of " + filename }]) : doc.log, _update: true });
+        updates++;
+      } else skips++;
+    } else docs.push(doc);
+  });
+
+  PENDING = { docs: docs };
+  var news = docs.filter(function(d){ return !d._update; });
+  document.getElementById('previewSummary').textContent =
+    news.length + " new ride" + (news.length===1?"":"s") +
+    (updates ? " · " + updates + " status update" + (updates===1?"":"s") : "") +
+    (skips ? " · " + skips + " already in, unchanged (skipped)" : "") +
+    (cancelled ? " · includes " + cancelled + " cancelled" : "");
+  document.getElementById('previewRows').innerHTML = docs.map(function(d){
+    if (d._update) return '<tr><td style="font:600 13px/1.4 Figtree,sans-serif;color:oklch(0.45 0.06 240);">'+d.id+'</td><td colspan="4" style="color:oklch(0.55 0.015 250);">already imported</td><td>'+ISV.pill(d.status)+'</td><td style="font:600 12px/1 Figtree,sans-serif;color:oklch(0.55 0.13 60);">status update</td></tr>';
+    return '<tr>'+
+      '<td style="font:600 13px/1.4 Figtree,sans-serif;color:oklch(0.45 0.06 240);white-space:nowrap;">'+d.id+'</td>'+
+      '<td>'+ISV.esc(d.name)+(d.phone?'<div style="font:400 12.5px/1.4 Figtree,sans-serif;color:oklch(0.55 0.015 250);">'+ISV.esc(d.phone)+'</div>':'')+'</td>'+
+      '<td style="max-width:260px;">'+ISV.esc(d.pickup)+' <span style="color:oklch(0.60 0.015 250);">→</span> '+ISV.esc(d.dropoff)+'</td>'+
+      '<td style="white-space:nowrap;">'+ISV.fmtDate(d.date)+(d.time?' '+ISV.fmtTime(d.time):'')+(d.willCall?'<div style="font:600 11px/1.6 Figtree,sans-serif;color:oklch(0.55 0.13 60);">Will call</div>':'')+'</td>'+
+      '<td>'+ISV.vehicleShort(d.vehicle)+(d.legType?'<div style="font:600 11px/1.6 Figtree,sans-serif;color:oklch(0.55 0.015 250);">Leg '+d.legType+'</div>':'')+(d.payor?'<div style="font:400 11.5px/1.5 Figtree,sans-serif;color:oklch(0.58 0.015 250);">'+ISV.esc(d.payor)+'</div>':'')+'</td>'+
+      '<td>'+ISV.pill(d.status)+'</td><td></td></tr>';
+  }).join('');
+  document.getElementById('previewWrap').style.display = docs.length ? "flex" : "none";
+  document.getElementById('resultWrap').style.display = "none";
+  if (!docs.length){
+    err.textContent = "Everything in that file is already imported and unchanged - nothing to do.";
+  }
+}
+
+function handleFile(file){
+  var err = document.getElementById('parseErr'); err.textContent = "";
+  var name = file.name || "spreadsheet";
+  if (/\.xlsx?$/i.test(name)){
+    // lazy-load SheetJS for Excel files
+    var go = function(){
+      var reader = new FileReader();
+      reader.onload = function(e){
+        try {
+          var wb = XLSX.read(new Uint8Array(e.target.result), { type:"array" });
+          var ws = wb.Sheets[wb.SheetNames[0]];
+          var arr = XLSX.utils.sheet_to_json(ws, { header:1, raw:false });
+          if (!arr.length){ err.textContent = "That sheet looks empty."; return; }
+          buildPreview(arr[0], arr.slice(1), name);
+        } catch(ex){ err.textContent = "Couldn't read that Excel file: " + ex.message; }
+      };
+      reader.readAsArrayBuffer(file);
+    };
+    if (window.XLSX) go();
+    else {
+      var s = document.createElement('script');
+      s.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+      s.onload = go;
+      s.onerror = function(){ err.textContent = "Couldn't load the Excel reader - save the file as .csv and try again."; };
+      document.head.appendChild(s);
+    }
+  } else {
+    var reader = new FileReader();
+    reader.onload = function(e){
+      var rows = parseCSV(e.target.result);
+      if (rows.length < 2){ err.textContent = "That file doesn't seem to have any data rows."; return; }
+      buildPreview(rows[0], rows.slice(1), name);
+    };
+    reader.readAsText(file);
+  }
+}
+
+var drop = document.getElementById('drop');
+var fileInput = document.getElementById('file');
+drop.onclick = function(){ fileInput.click(); };
+fileInput.onchange = function(){ if (this.files[0]) handleFile(this.files[0]); this.value = ""; };
+drop.ondragover = function(e){ e.preventDefault(); drop.style.borderColor = "oklch(0.62 0.115 237)"; };
+drop.ondragleave = function(){ drop.style.borderColor = "oklch(0.85 0.03 237)"; };
+drop.ondrop = function(e){ e.preventDefault(); drop.style.borderColor = "oklch(0.85 0.03 237)"; if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); };
+
+document.getElementById('doImport').onclick = function(){
+  if (!PENDING || !PENDING.docs.length) return;
+  var btn = this; btn.disabled = true; btn.textContent = "Importing…";
+  var clean = PENDING.docs.map(function(d){ var c = Object.assign({}, d); delete c._update; return c; });
+  ISV.book.importSet(clean).then(function(){
+    document.getElementById('previewWrap').style.display = "none";
+    document.getElementById('resultWrap').style.display = "flex";
+    var news = PENDING.docs.filter(function(d){ return !d._update; }).length;
+    var ups = PENDING.docs.length - news;
+    document.getElementById('resultLine').textContent = "Imported " + news + " ride" + (news===1?"":"s") + (ups ? " and updated " + ups + " existing" : "") + ". They're live on the dashboard for everyone right now.";
+    PENDING = null;
+  }).catch(function(e){
+    alert("Import problem: " + e.message);
+  }).finally(function(){
+    btn.disabled = false; btn.textContent = "Import these rides";
+  });
+};
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+MediRoutesClient,PickUpTime,PickUpAddressName,Status,MemberName,memberID,MemberAge,TripType,PickUpPhone,PickUpStreet,PickUpCity,PickUpState,PickUpZip,PickUpNotes,DropOffNotes,DropOffZip,DropOffState,DropOffCity,DropOffStreet,DropOffPhone,DropOffAddressName,DropOffTime,CarSeats,TripID,MobilityType,Escorts,Attendants,Miles,TripLegID,Payor,ClaimNote
+"SafeRide Health","08-06-2026 07:10",RESIDENCE,Scheduled,"PATRICIA MOORE",40009251801,,A,4423489331,"16464 Smithson Rd"," Helendale"," CA  ",92342,"turn left from the smithson road!
+
+(442) 348-9331-------mobile","turn left from the smithson road!
+
+(442) 348-9331-------mobile",92395," CA  "," Victorville","17270 Bear Valley Rd #105",,,"08-06-2026 08:00",,54825519,AMB,,,23,,Saferide,
+"SafeRide Health","08-06-2026 09:45",RESIDENCE,Scheduled,"PATRICIA MOORE",40009251801,,B,8559325415,"17270 Bear Valley Rd #105"," Victorville"," CA  ",92395,"turn left from the smithson road!
+
+(442) 348-9331-------mobile","turn left from the smithson road!
+
+(442) 348-9331-------mobile",92342," CA  "," Helendale","16464 Smithson Rd",,,,,54825522,AMB,,,23,,Saferide,
+"SafeRide Health","08-06-2026 12:56",RESIDENCE,Scheduled,"SAUL ROMERO TORRES",40025806601,,A,7608865865,"755 Arthur Ave"," Oceanside"," CA  ",92057,"Call upon (760) 886-5865","Call upon (760) 886-5865",92024," CA  "," Encinitas","320 Santa Fe Dr",,,"08-06-2026 13:45",,55063032,AMB,,,21,,Saferide,
+"SafeRide Health","08-06-2026 15:00",RESIDENCE,Scheduled,"SAUL ROMERO TORRES",40025806601,,B,8559325415,"320 Santa Fe Dr"," Encinitas"," CA  ",92024,"Call upon (760) 886-5865","Call upon (760) 886-5865",92057," CA  "," Oceanside","755 Arthur Ave",,,,,55063034,AMB,,,21,,Saferide,

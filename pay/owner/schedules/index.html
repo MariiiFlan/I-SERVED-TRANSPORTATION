@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Schedules — I Served Dispatch</title>
+<link rel="icon" href="../../favicon.ico" sizes="any">
+<link rel="icon" type="image/png" href="../../images/favicon-32.png">
+<link rel="apple-touch-icon" href="../../images/favicon-180.png">
+<link rel="stylesheet" href="../../assets/base.css">
+<style>body{background:oklch(0.975 0.006 250);}</style>
+</head>
+<body>
+<div class="console">
+  <div id="side"></div>
+  <main>
+    <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap;">
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <span class="kicker" style="letter-spacing:0.16em;font-size:11px;">Who is driving what</span>
+        <h2 style="margin:0;font:700 34px/1.05 'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:0.01em;">Driver schedules</h2>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <button class="btn2" id="prevDay" style="padding:11px 15px;font-size:14px;">&larr;</button>
+        <input id="day" type="date" class="inp" style="max-width:180px;padding:11px 14px;font-size:14px;">
+        <button class="btn2" id="nextDay" style="padding:11px 15px;font-size:14px;">&rarr;</button>
+        <button class="btn2" id="todayBtn" style="padding:11px 15px;font-size:14px;">Today</button>
+      </div>
+    </div>
+
+    <div class="grid4" style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;">
+      <div class="statcard"><span class="k">Rides this day</span><span class="v" id="stTotal">0</span><span class="s" id="stTotalSub"></span></div>
+      <div class="statcard"><span class="k">Waiting on driver</span><span class="v" id="stPending">0</span><span class="s">Assigned, not accepted yet</span></div>
+      <div class="statcard"><span class="k">Accepted</span><span class="v" id="stAccepted">0</span><span class="s">Driver confirmed</span></div>
+      <div class="statcard"><span class="k">Needs a driver</span><span class="v" id="stUn">0</span><span class="s">Unassigned or declined back</span></div>
+    </div>
+
+    <div id="unassignedBox" style="display:none;flex-direction:column;gap:10px;padding:18px 20px;border:1px solid oklch(0.90 0.04 60);background:oklch(0.99 0.02 85);border-radius:13px;">
+      <span style="font:700 14px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.48 0.10 70);">Needs rescheduling</span>
+      <div id="unassignedList" style="display:flex;flex-direction:column;gap:8px;"></div>
+    </div>
+
+    <div id="drivers" style="display:flex;flex-direction:column;gap:18px;"></div>
+  </main>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+<script src="../../assets/config.js"></script>
+<script src="../../assets/app.js"></script>
+<script>
+ISV.root = "../../";
+ISV.ready(function(){
+var me = ISV.auth.require("owner", "/owner/schedules/");
+if (!me) return;
+
+document.getElementById('side').innerHTML = ISV.sidebar("../../", "sched", "Dispatch console", [
+  { id:"dash", label:"Dashboard", href:"../dashboard/" },
+  { id:"sched", label:"Schedules", href:"../schedules/" },
+  { id:"team", label:"Team", href:"../team/" },
+  { id:"rep",  label:"Reports", href:"../reports/" }
+]);
+
+function isoToday(){ return new Date().toISOString().slice(0,10); }
+var dayInput = document.getElementById('day');
+dayInput.value = isoToday();
+function shiftDay(n){
+  var d = new Date(dayInput.value + "T12:00:00");
+  d.setDate(d.getDate() + n);
+  dayInput.value = d.toISOString().slice(0,10);
+  render();
+}
+document.getElementById('prevDay').onclick = function(){ shiftDay(-1); };
+document.getElementById('nextDay').onclick = function(){ shiftDay(1); };
+document.getElementById('todayBtn').onclick = function(){ dayInput.value = isoToday(); render(); };
+dayInput.onchange = render;
+
+function acceptState(b){
+  if (b.status === "Cancelled") return { label:"Cancelled", bg:"oklch(0.95 0.02 20)", fg:"oklch(0.50 0.15 25)" };
+  if (b.status === "Completed") return { label:"Completed", bg:"oklch(0.95 0.006 250)", fg:"oklch(0.45 0.015 250)" };
+  if (b.status === "Assigned")  return { label:"Waiting on driver", bg:"oklch(0.96 0.03 85)", fg:"oklch(0.50 0.10 75)" };
+  if (b.status === "Accepted")  return { label:"Accepted", bg:"oklch(0.94 0.05 160)", fg:"oklch(0.40 0.10 160)" };
+  if (b.status === "En route" || b.status === "Picked up") return { label:"In progress", bg:"oklch(0.94 0.05 160)", fg:"oklch(0.40 0.10 160)" };
+  return { label:"Unassigned", bg:"oklch(0.95 0.025 237)", fg:"oklch(0.45 0.10 240)" };
+}
+
+function declineInfo(b){
+  var log = b.log || [];
+  for (var i = log.length - 1; i >= 0; i--){
+    if (/declined by/i.test(log[i].text || "")) return log[i];
+  }
+  return null;
+}
+
+function rideRow(b){
+  var st = acceptState(b);
+  var dec = declineInfo(b);
+  return '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:12px 0;border-bottom:1px solid oklch(0.95 0.008 250);flex-wrap:wrap;cursor:pointer;" onclick="location.href=\'../booking/?id='+b.id+'\'">'+
+    '<div style="display:flex;flex-direction:column;gap:3px;min-width:230px;flex:1;">'+
+      '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">'+
+        '<span style="font:700 16px/1 \'Barlow Condensed\',sans-serif;letter-spacing:0.02em;">'+ISV.fmtTime(b.time)+'</span>'+
+        '<span style="font:600 14px/1.3 Figtree,sans-serif;">'+ISV.esc(b.name)+'</span>'+
+        '<span style="padding:4px 10px;border-radius:999px;background:'+st.bg+';font:600 11.5px/1 Figtree,sans-serif;color:'+st.fg+';">'+st.label+'</span>'+
+      '</div>'+
+      '<span style="font:400 13px/1.5 Figtree,sans-serif;color:oklch(0.50 0.015 250);">'+ISV.esc(b.pickup)+' &rarr; '+ISV.esc(b.dropoff)+'</span>'+
+      '<span style="font:400 12.5px/1.5 Figtree,sans-serif;color:oklch(0.58 0.015 250);">'+(ISV.serviceLabel(b.service) || ISV.vehicleShort(b.vehicle))+' · '+(b.miles||0)+' mi · '+b.id+'</span>'+
+      (dec ? '<span style="font:500 12.5px/1.5 Figtree,sans-serif;color:oklch(0.50 0.13 40);">'+ISV.esc(dec.text)+'</span>' : '')+
+    '</div>'+
+    '<span style="font:600 14px/1.4 Figtree,sans-serif;white-space:nowrap;">'+ISV.money(b.fare)+'</span>'+
+  '</div>';
+}
+
+function render(){
+  var day = dayInput.value;
+  var all = ISV.book.all().filter(function(b){ return b.date === day; })
+    .sort(function(a,b){ return (a.time||"") < (b.time||"") ? -1 : 1; });
+
+  var pending = all.filter(function(b){ return b.status === "Assigned"; });
+  var accepted = all.filter(function(b){ return ["Accepted","En route","Picked up","Completed"].indexOf(b.status) > -1; });
+  var needs = all.filter(function(b){ return !b.driverEmail && b.status !== "Cancelled"; });
+
+  document.getElementById('stTotal').textContent = all.length;
+  document.getElementById('stTotalSub').textContent = new Date(day + "T12:00:00").toLocaleDateString('en-US', { weekday:'long', month:'short', day:'numeric' });
+  document.getElementById('stPending').textContent = pending.length;
+  document.getElementById('stAccepted').textContent = accepted.length;
+  document.getElementById('stUn').textContent = needs.length;
+
+  // rides with nobody on them
+  var ub = document.getElementById('unassignedBox');
+  ub.style.display = needs.length ? "flex" : "none";
+  document.getElementById('unassignedList').innerHTML = needs.map(rideRow).join('');
+
+  // per-driver schedules
+  var drivers = ISV.auth.drivers();
+  document.getElementById('drivers').innerHTML = drivers.map(function(d){
+    var mine = all.filter(function(b){ return b.driverEmail === d.email; });
+    var waiting = mine.filter(function(b){ return b.status === "Assigned"; }).length;
+    var miles = mine.reduce(function(s,b){ return s + (b.miles||0); }, 0);
+    var money = mine.filter(function(b){ return b.status !== "Cancelled"; }).reduce(function(s,b){ return s + (b.fare||0); }, 0);
+    var phone = d.phone || "";
+    return '<div class="card" style="gap:12px;">'+
+      '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;">'+
+        '<div style="display:flex;flex-direction:column;gap:3px;">'+
+          '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">'+
+            '<span style="font:700 18px/1.2 Figtree,sans-serif;">'+ISV.esc(d.name)+'</span>'+
+            (d.role === "owner" ? '<span style="padding:4px 10px;border-radius:999px;background:oklch(0.32 0.03 248);font:600 11px/1 Figtree,sans-serif;color:#fff;">Owner</span>' : '')+
+            (d.active === false ? '<span style="padding:4px 10px;border-radius:999px;background:oklch(0.95 0.008 250);font:600 11px/1 Figtree,sans-serif;color:oklch(0.50 0.015 250);">Inactive</span>' : '')+
+            (waiting ? '<span style="padding:4px 10px;border-radius:999px;background:oklch(0.96 0.03 85);font:600 11px/1 Figtree,sans-serif;color:oklch(0.50 0.10 75);">'+waiting+' awaiting accept</span>' : '')+
+          '</div>'+
+          '<span style="font:400 13px/1.5 Figtree,sans-serif;color:oklch(0.55 0.015 250);">'+
+            mine.length+' ride'+(mine.length===1?'':'s')+' · '+miles+' mi · '+ISV.money(money)+
+            (d.vehicle ? ' · '+ISV.esc(d.vehicle) : '')+'</span>'+
+        '</div>'+
+        (phone ? '<div style="display:flex;gap:8px;flex-wrap:wrap;">'+
+          '<a class="btn2" style="padding:10px 15px;font-size:13.5px;" href="'+ISV.telHref(phone)+'">Call</a>'+
+          '<a class="btn2" style="padding:10px 15px;font-size:13.5px;" href="'+ISV.smsHref(phone, daySummaryText(d, mine, day))+'">Text schedule</a>'+
+        '</div>' : '<span style="font:400 12.5px/1.5 Figtree,sans-serif;color:oklch(0.55 0.13 60);">Add a mobile number on the <a href="../team/">Team</a> page to call or text.</span>')+
+      '</div>'+
+      (mine.length
+        ? '<div style="display:flex;flex-direction:column;">'+mine.map(rideRow).join('')+'</div>'
+        : '<span style="font:400 14px/1.6 Figtree,sans-serif;color:oklch(0.58 0.015 250);">Nothing scheduled this day.</span>')+
+    '</div>';
+  }).join('') || '<div class="card"><span style="font:400 15px/1.6 Figtree,sans-serif;color:oklch(0.55 0.015 250);">No drivers yet. Add one on the <a href="../team/">Team</a> page.</span></div>';
+}
+
+function daySummaryText(d, rides, day){
+  var pretty = new Date(day + "T12:00:00").toLocaleDateString('en-US', { weekday:'long', month:'short', day:'numeric' });
+  if (!rides.length) return (d.name ? d.name.split(" ")[0] + ", " : "") + "no rides scheduled for " + pretty + ".";
+  return (d.name ? d.name.split(" ")[0] + ", " : "") + "here's your schedule for " + pretty + ":\n\n" +
+    rides.map(function(b){
+      return ISV.fmtTime(b.time) + " - " + b.name + "\n" +
+        "  From: " + b.pickup + "\n" +
+        "  To: " + b.dropoff + "\n" +
+        "  " + (ISV.serviceLabel(b.service) || ISV.vehicleShort(b.vehicle)) + ", " + (b.miles||0) + " mi (" + b.id + ")";
+    }).join("\n\n") + "\n\nOpen your driver console to accept.";
+}
+
+render();
+ISV.onChange(render);
+setInterval(render, 6000);
+});
+</script>
+</body>
+</html>

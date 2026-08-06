@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My Rides - I Served Driver</title>
+<link rel="icon" href="../../favicon.ico" sizes="any">
+<link rel="icon" type="image/png" href="../../images/favicon-32.png">
+<link rel="apple-touch-icon" href="../../images/favicon-180.png">
+
+<link rel="stylesheet" href="../../assets/base.css">
+<style>body{background:oklch(0.975 0.006 250);}</style>
+</head>
+<body>
+<div class="console">
+  <div id="side"></div>
+  <main>
+    <div style="display:flex;flex-direction:column;gap:6px;">
+      <span id="today" style="font:600 11px/1 Barlow,sans-serif;letter-spacing:0.16em;text-transform:uppercase;color:oklch(0.62 0.11 237);"></span>
+      <h2 style="margin:0;font:700 34px/1.05 'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:0.01em;">My rides</h2>
+    </div>
+
+    <div class="grid3" style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;">
+      <div class="statcard"><span class="k">Next pickup</span><span class="v" id="stNext">-</span><span class="s" id="stNextSub"></span></div>
+      <div class="statcard"><span class="k">Rides today</span><span class="v" id="stCount">0</span><span class="s" id="stCountSub"></span></div>
+      <div class="statcard"><span class="k">Miles today</span><span class="v" id="stMiles">0</span><span class="s">Round trips included</span></div>
+    </div>
+
+    <div id="chips" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
+    <div id="list" style="display:flex;flex-direction:column;gap:14px;"></div>
+  </main>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+<script src="../../assets/config.js"></script>
+<script src="../../assets/app.js"></script>
+<script>
+ISV.root = "../../";
+ISV.ready(function(){
+var me = ISV.auth.require("driver", "/driver/rides/");
+if (me){
+document.getElementById('side').innerHTML = ISV.sidebar("../../", "rides", "Driver", [
+  { id:"rides", label:"My rides", href:"../rides/" }
+].concat(me.role === "owner" ? [{ id:"back", label:"← Dispatch console", href:"../../owner/dashboard/" }] : []));
+
+document.getElementById('today').textContent = new Date().toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+
+var view = "today";
+var TABS = [["today","Today"],["upcoming","Upcoming"],["done","Completed"]];
+function iso(d){ return d.toISOString().slice(0,10); }
+
+function leaveBy(t){
+  if (!t) return "";
+  var p = t.split(":"); var mins = (+p[0])*60 + (+p[1]) - 25;
+  if (mins < 0) mins += 1440;
+  var h = Math.floor(mins/60), m = mins%60;
+  var ap = h >= 12 ? "PM" : "AM"; var hh = h%12; if (hh===0) hh=12;
+  return "Leave by " + hh + ":" + String(m).padStart(2,'0') + " " + ap;
+}
+
+function chips(){
+  var mine = ISV.book.forDriver(me.email);
+  var t = iso(new Date());
+  var counts = {
+    today: mine.filter(function(b){ return b.date === t && b.status !== "Completed"; }).length,
+    upcoming: mine.filter(function(b){ return b.date > t && b.status !== "Completed"; }).length,
+    done: mine.filter(function(b){ return b.status === "Completed"; }).length
+  };
+  document.getElementById('chips').innerHTML = TABS.map(function(x){
+    return '<button class="chip'+(view===x[0]?' on':'')+'" data-v="'+x[0]+'">'+x[1]+' ('+counts[x[0]]+')</button>';
+  }).join('');
+  document.querySelectorAll('[data-v]').forEach(function(el){ el.onclick=function(){ view=this.getAttribute('data-v'); refresh(); }; });
+}
+
+function stats(){
+  var t = iso(new Date());
+  var mine = ISV.book.forDriver(me.email);
+  var todays = mine.filter(function(b){ return b.date === t && b.status !== "Completed"; })
+    .sort(function(a,b){ return (a.time||"") < (b.time||"") ? -1 : 1; });
+  if (todays.length){
+    document.getElementById('stNext').textContent = ISV.fmtTime(todays[0].time);
+    document.getElementById('stNextSub').textContent = todays[0].name + " · " + (todays[0].pickup.split(",")[1] || todays[0].pickup).trim();
+  } else {
+    document.getElementById('stNext').textContent = "-";
+    document.getElementById('stNextSub').textContent = "Nothing scheduled";
+  }
+  var needs = todays.filter(function(b){ return b.status === "Assigned"; }).length;
+  document.getElementById('stCount').textContent = todays.length;
+  document.getElementById('stCountSub').textContent = needs ? needs + " needs accepting" : "All accepted";
+  document.getElementById('stMiles').textContent = todays.reduce(function(s,b){ return s + (b.miles||0); }, 0);
+}
+
+function statusLabel(b){
+  if (b.status === "Assigned") return '<span style="padding:5px 11px;border-radius:999px;background:oklch(0.96 0.03 85);font:600 12px/1 Figtree,sans-serif;color:oklch(0.50 0.10 75);">Needs accepting</span>';
+  return ISV.pill(b.status);
+}
+
+function list(){
+  var t = iso(new Date());
+  var mine = ISV.book.forDriver(me.email);
+  var rows = mine.filter(function(b){
+    if (view === "today") return b.date === t && b.status !== "Completed";
+    if (view === "upcoming") return b.date > t && b.status !== "Completed";
+    return b.status === "Completed";
+  }).sort(function(a,b){ return (a.date+(a.time||'')) < (b.date+(b.time||'')) ? -1 : 1; });
+
+  document.getElementById('list').innerHTML = rows.length ? rows.map(function(b){
+    return '<div style="background:#fff;border:1px solid oklch(0.92 0.012 250);border-radius:14px;padding:20px 22px;display:flex;flex-direction:column;gap:12px;">'+
+      '<div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;">'+
+        '<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">'+
+          '<span style="font:700 22px/1 \'Barlow Condensed\',sans-serif;letter-spacing:0.02em;">'+(view!=="today" ? ISV.fmtDate(b.date)+" · " : "")+ISV.fmtTime(b.time)+'</span>'+
+          (b.status!=="Completed" ? '<span style="font:600 12px/1 Figtree,sans-serif;color:oklch(0.55 0.015 250);">'+leaveBy(b.time)+'</span>' : '')+
+        '</div>'+statusLabel(b)+'</div>'+
+      '<div style="display:flex;flex-direction:column;gap:4px;">'+
+        '<span style="font:600 16px/1.3 Figtree,sans-serif;">'+ISV.esc(b.name)+'</span>'+
+        '<span style="font:400 14.5px/1.5 Figtree,sans-serif;color:oklch(0.40 0.015 250);">'+ISV.mapLink(b.pickup)+' <span style="color:oklch(0.60 0.015 250);">→</span> '+ISV.mapLink(b.dropoff)+'</span>'+
+        '<span style="font:400 13px/1.5 Figtree,sans-serif;color:oklch(0.55 0.015 250);">'+ISV.tripLine(b)+' · '+ISV.esc(b.phone)+'</span>'+
+      '</div>'+
+      '<div style="display:flex;gap:10px;flex-wrap:wrap;">'+
+        (b.status === "Assigned"
+          ? '<button class="btn" style="padding:12px 20px;font-size:14px;" data-accept="'+b.id+'">Accept ride</button>'+
+            '<button class="btn2" style="padding:12px 18px;font-size:14px;" data-decline="'+b.id+'">Can\'t take it</button>'
+          : '')+
+        '<a class="btn2" style="padding:12px 18px;font-size:14px;display:inline-block;" href="../ride/?id='+b.id+'">Open ride</a>'+
+      '</div></div>';
+  }).join('')
+  : '<div style="border:1px dashed oklch(0.88 0.02 250);border-radius:14px;padding:40px;text-align:center;font:400 15px/1.7 Figtree,sans-serif;color:oklch(0.55 0.015 250);">Nothing here yet. Rides appear the moment dispatch assigns them to you.</div>';
+
+  document.querySelectorAll('[data-accept]').forEach(function(el){
+    el.onclick = function(){
+      var aid = this.getAttribute('data-accept');
+      ISV.book.update(aid, { status:"Accepted", acceptedAt: Date.now() }, "Accepted by " + me.name);
+      var ab = ISV.book.byId(aid); if (ab) ISV.notifyAccepted(ab, me.name);
+      refresh();
+    };
+  });
+  document.querySelectorAll('[data-decline]').forEach(function(el){
+    el.onclick = function(){
+      var reason = prompt("Send it back to dispatch - what's the reason?");
+      if (reason === null) return;
+      var did = this.getAttribute('data-decline');
+      var bb = ISV.book.byId(did);
+      ISV.book.update(did, { status:"New", driverEmail:null }, "Declined by " + me.name + (reason ? " - " + reason : ""));
+      if (bb) ISV.notifyDeclined(bb, me.name, reason);
+      refresh();
+    };
+  });
+}
+
+function refresh(){ chips(); stats(); list(); }
+refresh();
+ISV.onChange(refresh);
+setInterval(refresh, 4000);
+}
+
+});
+</script>
+</body>
+</html>

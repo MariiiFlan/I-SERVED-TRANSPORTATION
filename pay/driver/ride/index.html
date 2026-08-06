@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ride - I Served Driver</title>
+<link rel="icon" href="../../favicon.ico" sizes="any">
+<link rel="icon" type="image/png" href="../../images/favicon-32.png">
+<link rel="apple-touch-icon" href="../../images/favicon-180.png">
+
+<link rel="stylesheet" href="../../assets/base.css">
+<style>body{background:oklch(0.975 0.006 250);}</style>
+</head>
+<body>
+<div class="console">
+  <div id="side"></div>
+  <main id="main"></main>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+<script src="../../assets/config.js"></script>
+<script src="../../assets/app.js"></script>
+<script>
+ISV.root = "../../";
+ISV.ready(function(){
+var me = ISV.auth.require("driver", "/driver/rides/");
+if (me){
+var id = new URLSearchParams(location.search).get('id');
+
+document.getElementById('side').innerHTML = ISV.sidebar("../../", "rides", "Driver", [
+  { id:"rides", label:"My rides", href:"../rides/" }
+].concat(me.role === "owner" ? [{ id:"back", label:"← Dispatch console", href:"../../owner/dashboard/" }] : []));
+
+var SEQ = ["Accepted","En route","Picked up","Completed"];
+var BTN = { "Accepted":"Accept ride", "En route":"On my way", "Picked up":"Picked up", "Completed":"Completed" };
+var LOGTXT = { "Accepted":"accepted the ride", "En route":"is on the way", "Picked up":"picked up the passenger", "Completed":"completed the ride" };
+
+function stageIndex(status){
+  if (status === "Assigned" || status === "New") return -1;
+  return SEQ.indexOf(status);
+}
+
+function render(){
+  var b = ISV.book.byId(id);
+  var m = document.getElementById('main');
+  if (!b){ m.innerHTML = '<p style="font:400 16px/1.6 Figtree,sans-serif;">Ride not found. <a href="../rides/">← My rides</a></p>'; return; }
+  if (b.driverEmail !== me.email && me.role !== "owner"){
+    m.innerHTML = '<p style="font:400 16px/1.6 Figtree,sans-serif;">This ride isn\'t assigned to you anymore. <a href="../rides/">← My rides</a></p>'; return;
+  }
+  var idx = stageIndex(b.status);
+  var cancelled = b.status === "Cancelled";
+
+  m.innerHTML =
+  '<div style="display:flex;flex-direction:column;gap:8px;">'+
+    '<a href="../rides/" style="font:600 13px/1 Figtree,sans-serif;">← My assigned rides</a>'+
+    '<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">'+
+      '<h2 style="margin:0;font:700 30px/1.05 \'Barlow Condensed\',sans-serif;text-transform:uppercase;letter-spacing:0.01em;">'+ISV.fmtDate(b.date)+' · '+ISV.fmtTime(b.time)+'</h2>'+
+      (b.status === "Assigned" ? '<span style="padding:5px 11px;border-radius:999px;background:oklch(0.96 0.03 85);font:600 12px/1 Figtree,sans-serif;color:oklch(0.50 0.10 75);">Needs accepting</span>' : ISV.pill(b.status))+
+    '</div>'+
+    '<span style="font:400 14px/1.5 Figtree,sans-serif;color:oklch(0.55 0.015 250);">Ride '+b.id+'</span>'+
+  '</div>'+
+
+  '<div class="booking-grid" style="display:grid;grid-template-columns:1.1fr 0.9fr;gap:20px;align-items:start;">'+
+    '<div style="display:flex;flex-direction:column;gap:20px;">'+
+
+      '<div class="card" style="gap:0;padding:0;overflow:hidden;">'+
+        '<div style="padding:16px 24px;background:oklch(0.985 0.008 237);border-bottom:1px solid oklch(0.93 0.01 250);font:700 14px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.45 0.02 250);">Client</div>'+
+        '<div style="padding:8px 24px 18px;">'+
+          [["Name", b.name], ["Phone", b.phone], ["Riding along", (b.pax>1 ? "Passenger + "+(b.pax-1)+" companion"+(b.pax>2?"s":"") : "Just the passenger")]]
+          .map(function(r){ return '<div style="display:grid;grid-template-columns:150px 1fr;gap:16px;padding:12px 0;border-bottom:1px solid oklch(0.96 0.006 250);">'+
+            '<span style="font:500 14px/1.5 Figtree,sans-serif;color:oklch(0.56 0.015 250);">'+r[0]+'</span>'+
+            '<span style="font:600 15px/1.5 Figtree,sans-serif;color:oklch(0.30 0.02 250);">'+ISV.esc(r[1])+'</span></div>'; }).join('')+
+          '<div style="display:flex;gap:10px;padding-top:14px;">'+
+            '<a class="btn" style="padding:12px 18px;font-size:14px;display:inline-block;" href="tel:'+ISV.esc(b.phone)+'">Call client</a>'+
+            '<a class="btn2" style="padding:12px 18px;font-size:14px;display:inline-block;" href="sms:'+ISV.esc(b.phone)+'">Text client</a>'+
+          '</div>'+
+        '</div></div>'+
+
+      '<div class="card" style="gap:0;padding:0;overflow:hidden;">'+
+        '<div style="padding:16px 24px;background:oklch(0.985 0.008 237);border-bottom:1px solid oklch(0.93 0.01 250);font:700 14px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.45 0.02 250);">Trip</div>'+
+        '<div style="padding:8px 24px 16px;">'+
+          [["Pickup", ISV.mapLink(b.pickup) + ' <span style="font:400 13px;color:oklch(0.55 0.015 250);">- arrive 15 min early</span>', true], ["Drop-off", ISV.mapLink(b.dropoff), true], ["Service", ISV.serviceLabel(b.service) || ISV.vehicleShort(b.vehicle)], ["Vehicle type", ISV.vehicleName(b.vehicle)],
+           ["Trip type", b.tripType==="round"?"Round trip":"One way"], ["Distance", b.miles+" mi total"],
+           ["Wait at appointment", (b.addOns&&b.addOns.wait) ? "Yes - driver waits" : "No"],
+           ["Notes from dispatch", b.notes || "None"]]
+          .map(function(r){ return '<div style="display:grid;grid-template-columns:170px 1fr;gap:16px;padding:12px 0;border-bottom:1px solid oklch(0.96 0.006 250);">'+
+            '<span style="font:500 14px/1.5 Figtree,sans-serif;color:oklch(0.56 0.015 250);">'+r[0]+'</span>'+
+            '<span style="font:600 15px/1.5 Figtree,sans-serif;color:oklch(0.30 0.02 250);">'+(r[2] ? r[1] : ISV.esc(r[1]))+'</span></div>'; }).join('')+
+        '</div></div>'+
+    '</div>'+
+
+    '<div style="display:flex;flex-direction:column;gap:20px;">'+
+      '<div class="card" style="gap:14px;">'+
+        '<span style="font:700 14px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.45 0.02 250);">Ride status</span>'+
+        (cancelled
+          ? '<span style="font:400 14px/1.6 Figtree,sans-serif;color:oklch(0.50 0.15 25);">This ride was cancelled by dispatch.</span>'
+          : '<span style="font:400 14px/1.6 Figtree,sans-serif;color:oklch(0.52 0.015 250);">'+(idx<0 ? "Accept to start the sequence." : "Steps unlock in order. Dispatch sees each tap instantly.")+'</span>'+
+            '<div style="display:flex;flex-direction:column;gap:9px;">'+
+            SEQ.map(function(s,i){
+              var done = i <= idx;
+              var nextUp = i === idx+1;
+              return '<button data-stage="'+s+'" '+(nextUp?'':'disabled')+' style="cursor:'+(nextUp?'pointer':'default')+';padding:15px;border-radius:10px;font:600 15px/1 Figtree,sans-serif;border:0;'+
+                (done ? 'background:oklch(0.94 0.05 160);color:oklch(0.38 0.10 160);'
+                 : nextUp ? 'background:oklch(0.62 0.115 237);color:#fff;'
+                 : 'background:oklch(0.96 0.006 250);color:oklch(0.65 0.012 250);')+'">'+
+                (done ? '✓ ' : '')+BTN[s]+'</button>';
+            }).join('')+'</div>')+
+      '</div>'+
+      (!cancelled && b.status !== "Completed" ?
+      '<div class="card" style="gap:10px;">'+
+        '<span style="font:600 14.5px/1.4 Figtree,sans-serif;">Can\'t take this ride?</span>'+
+        '<span style="font:400 13.5px/1.55 Figtree,sans-serif;color:oklch(0.52 0.015 250);">Send it back to dispatch with a reason and they\'ll reassign.</span>'+
+        '<button class="btn2" id="decline" style="padding:13px;font-size:14px;color:oklch(0.50 0.15 25);">Decline &amp; notify dispatch</button>'+
+      '</div>' : '')+
+    '</div>'+
+  '</div>';
+
+  document.querySelectorAll('[data-stage]').forEach(function(el){
+    el.onclick = function(){
+      var s = this.getAttribute('data-stage');
+      if (SEQ.indexOf(s) !== stageIndex(ISV.book.byId(id).status)+1) return;
+      ISV.book.update(id, { status: s }, me.name + " " + LOGTXT[s]);
+      if (s === "Accepted"){ var ab = ISV.book.byId(id); if (ab) ISV.notifyAccepted(ab, me.name); }
+      render();
+    };
+  });
+  var dec = document.getElementById('decline');
+  if (dec) dec.onclick = function(){
+    var reason = prompt("What's the reason? Dispatch will see it.");
+    if (reason === null) return;
+    var bb = ISV.book.byId(id);
+    ISV.book.update(id, { status:"New", driverEmail:null }, "Declined by " + me.name + (reason ? " - " + reason : ""));
+    if (bb) ISV.notifyDeclined(bb, me.name, reason);
+    location.href = "../rides/";
+  };
+}
+
+render();
+ISV.onChange(render);
+setInterval(render, 4000);
+}
+
+});
+</script>
+</body>
+</html>
