@@ -125,7 +125,9 @@ function render(){
   if (dec) dec.onclick = function(){
     var reason = prompt("What's the reason? Dispatch will see it.");
     if (reason === null) return;
+    var bb = ISV.book.byId(id);
     ISV.book.update(id, { status:"New", driverEmail:null }, "Declined by " + me.name + (reason ? " - " + reason : ""));
+    ISV.notifyDispatch(me.name + " can't take " + id, (reason ? "Reason: " + reason + "\n" : "") + (bb ? ISV.rideBlurb(bb) : "") + "\nNeeds reassigning.");
     location.href = "../rides/";
   };
 }

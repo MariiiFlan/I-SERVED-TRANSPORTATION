@@ -102,7 +102,7 @@
       </div>
     </div>
 
-    <div style="position:sticky;top:100px;display:flex;flex-direction:column;gap:16px;">
+    <div id="estPanel" style="position:sticky;top:100px;display:flex;flex-direction:column;gap:16px;">
       <div style="border:1px solid oklch(0.88 0.03 237);border-radius:16px;overflow:hidden;">
         <div style="padding:20px 22px;background:oklch(0.96 0.018 237);display:flex;flex-direction:column;gap:4px;">
           <span style="font:600 11px/1 Barlow,sans-serif;letter-spacing:0.16em;text-transform:uppercase;color:oklch(0.48 0.09 240);">Live estimate</span>
@@ -128,6 +128,14 @@
     </div>
   </div>
 </main>
+
+<div id="mobileBar" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:50;background:#fff;border-top:1px solid oklch(0.90 0.015 250);padding:12px 16px;align-items:center;justify-content:space-between;gap:14px;box-shadow:0 -8px 24px -16px oklch(0.4 0.05 245 / 0.5);">
+  <div style="display:flex;flex-direction:column;gap:2px;">
+    <span style="font:600 10.5px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.55 0.015 250);">Estimate</span>
+    <span id="mobileTotal" style="font:700 22px/1 'Barlow Condensed',sans-serif;color:oklch(0.30 0.04 245);"></span>
+  </div>
+  <button class="btn" id="mobileGo" style="padding:13px 22px;font-size:15px;">Review &amp; continue</button>
+</div>
 
 <div id="ftr"></div>
 
@@ -229,6 +237,7 @@ function calc(){
   var f = ISV.fare(S);
   document.getElementById('totalBig').textContent = ISV.money(f.total);
   document.getElementById('totalSmall').textContent = ISV.money(f.total);
+  document.getElementById('mobileTotal').textContent = ISV.money(f.total);
   document.getElementById('estSummary').textContent = f.miles + " mi · " + ISV.vehicleName(S.vehicle) + (S.tripType==="round" ? " · round trip" : " · one way");
   document.getElementById('breakdown').innerHTML = f.rows.map(function(r){
     return '<div style="display:flex;align-items:baseline;justify-content:space-between;gap:14px;">'+
@@ -387,6 +396,11 @@ function wireAddress(which){
 }
 wireAddress('pickup');
 wireAddress('dropoff');
+
+document.body.classList.add('has-mobilebar');
+document.getElementById('mobileGo').onclick = function(){
+  document.getElementById('estPanel').scrollIntoView({ behavior:'smooth', block:'start' });
+};
 
 render();
 

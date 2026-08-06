@@ -204,6 +204,7 @@
         return withTimeout(db.collection("grants").doc(ME.email).get(), 5000)
           .catch(function (e) { if (e && e.code === "timeout") return restGet("grants", ME.email); throw e; })
           .then(function (g) {
+            if (g.exists) GRANTS[ME.email] = Object.assign({}, GRANTS[ME.email] || {}, g.data()); // own profile (alert topic etc.)
             if (g.exists && g.data().role && g.data().role !== ME.role) {
               var newRole = g.data().role;
               return withTimeout(db.collection("users").doc(ME.uid).update({ role: newRole }), 6000)
@@ -348,6 +349,28 @@
     }
   };
 
+  /* ---------------- phone alerts (free push via ntfy.sh) ---------------- */
+  function notify(topic, title, message) {
+    if (!topic) return Promise.resolve();
+    return fetch("https://ntfy.sh/" + encodeURIComponent(topic), {
+      method: "POST",
+      body: message,
+      headers: { "Title": title, "Priority": "high", "Tags": "blue_car" }
+    }).catch(function () {});
+  }
+  function rideBlurb(b) {
+    return (b.name || "Ride") + "\n" + fmtDate(b.date) + " at " + fmtTime(b.time) + "\n" +
+      (b.pickup || "?") + " -> " + (b.dropoff || "?") + "\n" +
+      vehicleShort(b.vehicle) + " · " + money(b.fare) + " · " + b.id;
+  }
+  function notifyDispatch(title, message) {
+    return notify((C.NOTIFY || {}).DISPATCH_TOPIC, title, message);
+  }
+  function notifyDriver(email, title, message) {
+    var p = GRANTS[norm(email)] || {};
+    return notify(p.ntfyTopic, title, message);
+  }
+
   /* ---------------- bookings ---------------- */
   function newId() { return "IST-" + Math.floor(100000 + Math.random() * 899999); }
   var BOOK = {
@@ -402,6 +425,7 @@
           BOOKINGS.push(b);
           try { sessionStorage.setItem("isv_last_booking", JSON.stringify(b)); } catch (e) {}
           fireChange();
+          notifyDispatch("New ride request " + b.id, rideBlurb(b));
           return b;
         }, function (e) { throw friendly(e); });
     },
@@ -500,10 +524,10 @@
       acct = links;
     }
     return dbBanner() + '<header style="position:sticky;top:0;z-index:20;background:rgba(255,255,255,0.92);backdrop-filter:blur(10px);border-bottom:1px solid oklch(0.93 0.01 250);">' +
-      '<div style="max-width:1180px;margin:0 auto;padding:0 32px;height:76px;display:flex;align-items:center;justify-content:space-between;gap:24px;">' +
-      '<a href="' + root + '" style="color:inherit;">' + logo(38) + '</a>' +
-      '<nav style="display:flex;align-items:center;gap:22px;flex-wrap:wrap;">' + acct +
-      '<span style="font:600 15px/1 Figtree,sans-serif;color:oklch(0.34 0.02 250);">' + C.PHONE_DISPLAY + '</span>' +
+      '<div class="hdr-inner" style="max-width:1180px;margin:0 auto;padding:0 32px;height:76px;display:flex;align-items:center;justify-content:space-between;gap:24px;">' +
+      '<a href="' + root + '" class="hdr-logo" style="color:inherit;">' + logo(38) + '</a>' +
+      '<nav class="hdr-nav" style="display:flex;align-items:center;gap:22px;flex-wrap:wrap;">' + acct +
+      '<a href="tel:' + C.PHONE_TEL + '" class="hdr-phone" style="font:600 15px/1 Figtree,sans-serif;color:oklch(0.34 0.02 250);">' + C.PHONE_DISPLAY + '</a>' +
       '<a href="' + root + 'book/" style="padding:12px 20px;border-radius:8px;background:oklch(0.62 0.115 237);color:#fff;font:600 15px/1 Figtree,sans-serif;">Book now</a>' +
       (ME ? '<button onclick="ISV.auth.signOutTo(\'' + root + '\')" style="cursor:pointer;padding:11px 16px;border-radius:8px;background:none;border:1px solid oklch(0.88 0.02 250);color:oklch(0.42 0.02 250);font:600 14px/1 Figtree,sans-serif;">Sign out</button>' : '') +
       '</nav></div></header>';
@@ -530,11 +554,11 @@
         '<span>' + it.label + '</span>' + (it.badge ? '<span style="padding:4px 8px;border-radius:999px;background:oklch(0.62 0.115 237);font:700 11px/1 Figtree,sans-serif;color:#fff;">' + it.badge + '</span>' : '') + '</a>';
     }).join('');
     return '<aside style="background:oklch(0.32 0.03 248);padding:24px 18px;display:flex;flex-direction:column;gap:26px;min-height:100vh;">' +
-      '<a href="' + root + '" style="padding:0 8px;color:inherit;">' + logo(26, true, sub) + '</a>' +
+      '<a href="' + root + '" class="side-logo" style="padding:0 8px;color:inherit;">' + logo(26, true, sub) + '</a>' +
       (DBERROR ? '<div style="background:oklch(0.50 0.15 25);color:#fff;padding:10px 12px;border-radius:9px;font:500 12.5px/1.5 Figtree,sans-serif;">' + esc(DBERROR) + '</div>' : '') +
-      '<div style="display:flex;flex-direction:column;gap:4px;">' + nav + '</div>' +
-      '<div style="margin-top:auto;display:flex;flex-direction:column;gap:12px;padding:16px;border-radius:12px;background:rgba(255,255,255,0.07);">' +
-      '<div style="display:flex;flex-direction:column;gap:2px;"><span style="font:600 14px/1.3 Figtree,sans-serif;color:#fff;">' + (me.name || "") + '</span>' +
+      '<div class="side-nav" style="display:flex;flex-direction:column;gap:4px;">' + nav + '</div>' +
+      '<div class="side-acct" style="margin-top:auto;display:flex;flex-direction:column;gap:12px;padding:16px;border-radius:12px;background:rgba(255,255,255,0.07);">' +
+      '<div class="side-who" style="display:flex;flex-direction:column;gap:2px;"><span style="font:600 14px/1.3 Figtree,sans-serif;color:#fff;">' + (me.name || "") + '</span>' +
       '<span style="font:400 12px/1.3 Figtree,sans-serif;color:rgba(255,255,255,0.55);">' + (me.role === "owner" ? "Owner" : me.role === "driver" ? "Driver" : "") + '</span></div>' +
       '<button onclick="ISV.auth.signOutTo(\'' + root + '\')" style="cursor:pointer;background:none;padding:9px;border:1px solid rgba(255,255,255,0.28);border-radius:8px;font:600 13px/1 Figtree,sans-serif;color:#fff;text-align:center;">Sign out</button>' +
       '</div></aside>';
@@ -579,6 +603,7 @@
     onChange: function (fn) { changeHandlers.push(fn); },
     bootstrapped: function () { return BOOTSTRAPPED; },
     dbError: function () { return DBERROR; },
+    notifyDispatch: notifyDispatch, notifyDriver: notifyDriver, rideBlurb: rideBlurb,
     money: money, fare: fare, vehicleName: vehicleName, vehicleShort: vehicleShort,
     logo: logo, header: header, footer: footer, sidebar: sidebar, pill: pill,
     fmtDate: fmtDate, fmtTime: fmtTime, esc: esc, tripLine: tripLine, mapsUrl: mapsUrl, mapLink: mapLink

@@ -214,6 +214,8 @@ function render(){
       var email = this.getAttribute('data-assign');
       var d = ISV.auth.accounts().find(function(u){ return u.email === email; });
       ISV.book.update(id, { driverEmail: email, status: "Assigned" }, "Assigned to " + (d ? d.name : email) + " by " + me.name);
+      var bb = ISV.book.byId(id);
+      if (bb) ISV.notifyDriver(email, "New ride assigned to you", ISV.rideBlurb(bb) + "\nOpen your driver console to accept.");
       render();
     };
   });

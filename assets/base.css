@@ -40,10 +40,50 @@ button { font-family: Figtree, sans-serif; }
 .tbl tr.click { cursor: pointer; }
 .tbl tr.click:hover td { background: oklch(0.98 0.008 237); }
 
+img { max-width: 100%; height: auto; }
+
 @media (max-width: 900px) {
+  /* layout collapses */
+  .booking-grid, .split { grid-template-columns: 1fr !important; }
+  .grid2 { grid-template-columns: 1fr !important; }
+  .grid3, .grid4 { grid-template-columns: 1fr 1fr !important; }
+
+  /* page padding + type scale */
+  main { padding-left: 18px !important; padding-right: 18px !important; padding-top: 36px !important; }
+  h1 { font-size: clamp(30px, 9.5vw, 46px) !important; }
+  h2 { font-size: clamp(25px, 7.5vw, 34px) !important; }
+  .inp, select.inp, textarea.inp { font-size: 16px !important; } /* stops iOS zoom-on-focus */
+
+  /* header */
+  .hdr-inner { height: auto !important; min-height: 58px; padding: 10px 16px !important; gap: 12px !important; flex-wrap: wrap; }
+  .hdr-phone { display: none !important; }
+  .hdr-nav { gap: 12px !important; }
+  .hdr-nav a, .hdr-nav button { font-size: 14px !important; }
+  .hdr-nav a[href$="book/"] { padding: 10px 14px !important; }
+
+  /* console: sidebar becomes a compact sticky top bar */
   .console { grid-template-columns: 1fr; }
-  .console aside { min-height: 0 !important; }
-  .grid2, .grid3, .grid4 { grid-template-columns: 1fr !important; }
-  .booking-grid { grid-template-columns: 1fr !important; }
-  .split { grid-template-columns: 1fr !important; }
+  .console aside { min-height: 0 !important; flex-direction: row !important; align-items: center !important; flex-wrap: wrap; gap: 10px 14px !important; padding: 10px 14px !important; position: sticky; top: 0; z-index: 40; }
+  .side-nav { flex-direction: row !important; flex-wrap: wrap; gap: 6px !important; }
+  .side-nav a { padding: 8px 12px !important; font-size: 14px !important; }
+  .side-acct { margin-top: 0 !important; margin-left: auto; padding: 0 !important; background: none !important; flex-direction: row !important; align-items: center; }
+  .side-who { display: none !important; }
+  .console main { padding: 16px 14px 80px !important; }
+
+  /* label/value rows stack (trip summaries, confirm page, edit views) */
+  [style*="grid-template-columns:180px"], [style*="grid-template-columns:170px"], [style*="grid-template-columns:150px"] { grid-template-columns: 1fr !important; gap: 3px !important; }
+
+  /* booking page: estimate panel flows inline; mobile bar appears */
+  #estPanel { position: static !important; }
+  #mobileBar { display: flex !important; }
+  body.has-mobilebar { padding-bottom: 74px; }
+
+  .statcard .v { font-size: 26px; }
+  .tbl { -webkit-overflow-scrolling: touch; }
+}
+
+@media (max-width: 460px) {
+  .grid3, .grid4 { grid-template-columns: 1fr 1fr !important; }
+  .chip { padding: 8px 12px; font-size: 12.5px; }
+  .console aside { gap: 8px 10px !important; }
 }

@@ -22,6 +22,7 @@
       <div class="statcard"><span class="k">Miles today</span><span class="v" id="stMiles">0</span><span class="s">Round trips included</span></div>
     </div>
 
+    <div id="alertHint" style="display:none;padding:14px 18px;border:1px solid oklch(0.89 0.03 237);background:oklch(0.97 0.012 237);border-radius:12px;font:500 14px/1.6 Figtree,sans-serif;color:oklch(0.40 0.04 243);"></div>
     <div id="chips" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
     <div id="list" style="display:flex;flex-direction:column;gap:14px;"></div>
   </main>
@@ -131,13 +132,24 @@ function list(){
     el.onclick = function(){
       var reason = prompt("Send it back to dispatch - what's the reason?");
       if (reason === null) return;
-      ISV.book.update(this.getAttribute('data-decline'), { status:"New", driverEmail:null }, "Declined by " + me.name + (reason ? " - " + reason : ""));
+      var did = this.getAttribute('data-decline');
+      var bb = ISV.book.byId(did);
+      ISV.book.update(did, { status:"New", driverEmail:null }, "Declined by " + me.name + (reason ? " - " + reason : ""));
+      ISV.notifyDispatch(me.name + " can't take " + did, (reason ? "Reason: " + reason + "\n" : "") + (bb ? ISV.rideBlurb(bb) : "") + "\nNeeds reassigning.");
       refresh();
     };
   });
 }
 
-function refresh(){ chips(); stats(); list(); }
+function alertHint(){
+  var p = ISV.auth.profile(me.email);
+  var el = document.getElementById('alertHint');
+  if (p.ntfyTopic){
+    el.style.display = "block";
+    el.innerHTML = 'Get a buzz on your phone the second dispatch assigns you a ride: install the free <b>ntfy</b> app and subscribe to your topic <a href="https://ntfy.sh/'+ISV.esc(p.ntfyTopic)+'" target="_blank" rel="noopener" style="font-weight:700;">'+ISV.esc(p.ntfyTopic)+'</a>';
+  }
+}
+function refresh(){ chips(); stats(); list(); alertHint(); }
 refresh();
 ISV.onChange(refresh);
 setInterval(refresh, 4000);

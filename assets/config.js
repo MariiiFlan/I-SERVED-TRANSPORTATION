@@ -36,6 +36,15 @@ window.CONFIG = {
   ADDON_ASSIST: 12,    // door-through-door assistance
   ADDON_AFTERHOURS: 25,// pickup before 6am / after 8pm
 
+  // ---------------- PHONE ALERTS (free push via ntfy.sh) ----------------
+  // Install the free "ntfy" app (App Store / Play Store), tap +, and
+  // subscribe to the topic below. Every new ride then pops up on the
+  // owner's phone like a text. Drivers each get their own topic on the
+  // Team page. Keep topic names secret - they're the only password.
+  NOTIFY: {
+    DISPATCH_TOPIC: "iserved-dispatch-88lvws8w"
+  },
+
   // ---------------- CHECKOUT / PROMO ----------------
   // Online card payments aren't wired yet, so rides only reach the
   // dashboard through checkout with a valid promo code (testing) -
