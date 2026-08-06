@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>My Rides - I Served Transportation</title>
+<link rel="icon" href="../favicon.ico" sizes="any">
+<link rel="icon" type="image/png" href="../images/favicon-32.png">
+<link rel="apple-touch-icon" href="../images/favicon-180.png">
+
 <link rel="stylesheet" href="../assets/base.css">
 </head>
 <body>
@@ -12,7 +16,7 @@
 <main style="max-width:900px;margin:0 auto;padding:56px 32px 90px;display:flex;flex-direction:column;gap:26px;">
   <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap;">
     <div style="display:flex;flex-direction:column;gap:8px;">
-      <span class="kicker">Your account</span>
+      <span class="kicker">Ride history</span>
       <h1 style="margin:0;font:700 46px/1.05 'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:0.01em;">My rides</h1>
       <p id="whoLine" style="margin:0;font:400 16px/1.6 Figtree,sans-serif;color:oklch(0.50 0.015 250);"></p>
     </div>
@@ -40,7 +44,40 @@ document.getElementById('hdr').innerHTML = ISV.header("../");
 document.getElementById('ftr').innerHTML = ISV.footer("../");
 if (me){
   document.getElementById('whoLine').textContent = "Signed in as " + me.email + ". Every ride you book while signed in shows up here.";
+  function card(b){
+    return '<div style="border:1px solid oklch(0.92 0.012 250);border-radius:16px;padding:22px 24px;display:flex;flex-direction:column;gap:12px;background:#fff;">'+
+      '<div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;">'+
+      '<div style="display:flex;align-items:center;gap:12px;"><span style="font:700 18px/1 \'Barlow Condensed\',sans-serif;letter-spacing:0.02em;">'+ISV.fmtDate(b.date)+' - '+ISV.fmtTime(b.time)+'</span>'+ISV.pill(b.status)+'</div>'+
+      '<span style="font:600 15px/1 Figtree,sans-serif;color:oklch(0.50 0.115 238);">'+ISV.money(b.fare)+' est.</span></div>'+
+      '<div style="font:500 15px/1.5 Figtree,sans-serif;color:oklch(0.35 0.02 250);">'+ISV.mapLink(b.pickup)+' <span style="color:oklch(0.60 0.015 250);">-&gt;</span> '+ISV.mapLink(b.dropoff)+'</div>'+
+      '<div style="font:400 13px/1.5 Figtree,sans-serif;color:oklch(0.55 0.015 250);">'+(ISV.serviceLabel(b.service) || ISV.vehicleShort(b.vehicle))+' - '+ISV.tripLine(b)+' - Request '+b.id+'</div>'+
+      '<div><button class="btn2" data-rebook="'+b.id+'" style="padding:10px 16px;font-size:13.5px;">Book this route again</button></div>'+
+      '</div>';
+  }
   function render(){
+    var mine = ISV.book.mine(me).sort(function(a,b){ return b.created - a.created; });
+    var today = new Date().toISOString().slice(0,10);
+    var upcoming = mine.filter(function(b){ return b.date >= today && b.status !== "Completed" && b.status !== "Cancelled"; });
+    var past = mine.filter(function(b){ return upcoming.indexOf(b) === -1; });
+    function section(title, list){
+      if (!list.length) return '';
+      return '<div style="display:flex;flex-direction:column;gap:12px;">'+
+        '<span style="font:600 11px/1 Barlow,sans-serif;letter-spacing:0.16em;text-transform:uppercase;color:oklch(0.55 0.015 250);">'+title+'</span>'+
+        list.map(card).join('')+'</div>';
+    }
+    document.getElementById('list').innerHTML = mine.length
+      ? section("Upcoming", upcoming) + section("Past rides", past)
+      : '<div style="border:1px dashed oklch(0.88 0.02 250);border-radius:16px;padding:40px;text-align:center;font:400 16px/1.6 Figtree,sans-serif;color:oklch(0.55 0.015 250);">No rides yet. <a href="../book/">Book your first ride</a> and it will appear here with live status.</div>';
+    document.querySelectorAll('[data-rebook]').forEach(function(el){
+      el.onclick = function(){
+        var b = ISV.book.byId(this.getAttribute('data-rebook'));
+        if (!b) return;
+        try { localStorage.setItem('isv_draft', JSON.stringify({ pickup:b.pickup, dropoff:b.dropoff, tripType:b.tripType, vehicle:b.vehicle, service:b.service, time:b.time })); } catch(e){}
+        location.href = '../book/';
+      };
+    });
+  }
+  function OLDrender(){
     var mine = ISV.book.mine(me).sort(function(a,b){ return b.created - a.created; });
     document.getElementById('list').innerHTML = mine.length ? mine.map(function(b){
       return '<div style="border:1px solid oklch(0.92 0.012 250);border-radius:16px;padding:22px 24px;display:flex;flex-direction:column;gap:12px;background:#fff;">'+

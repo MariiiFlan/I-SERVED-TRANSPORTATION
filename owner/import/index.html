@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Import Rides - I Served Dispatch</title>
+<link rel="icon" href="../../favicon.ico" sizes="any">
+<link rel="icon" type="image/png" href="../../images/favicon-32.png">
+<link rel="apple-touch-icon" href="../../images/favicon-180.png">
+
 <link rel="stylesheet" href="../../assets/base.css">
 <style>body{background:oklch(0.975 0.006 250);}</style>
 </head>
@@ -67,6 +71,7 @@ if (!me) return;
 
 document.getElementById('side').innerHTML = ISV.sidebar("../../", "dash", "Dispatch console", [
   { id:"dash", label:"Dashboard", href:"../dashboard/" },
+  { id:"sched", label:"Schedules", href:"../schedules/" },
   { id:"team", label:"Team", href:"../team/" },
   { id:"rep",  label:"Reports", href:"../reports/" }
 ]);
@@ -98,29 +103,46 @@ function parseCSV(text){
 
 // which spreadsheet column feeds which booking field
 var ALIASES = {
-  externalId: ["rideid","ride id","id","trip id","tripid","confirmation","confirmation number","request","request id","reference"],
+  externalId: ["tripid","trip id","rideid","ride id","id","triplegid","confirmation","confirmation number","reference"],
   status:     ["status","ride status","trip status"],
-  name:       ["name","passenger","passenger name","client","client name","member","member name","patient","patient name","rider"],
-  phone:      ["phone","phone number","member phone","passenger phone","client phone","contact"],
-  pickup:     ["pickup","pickup address","origin","origin address","from","from address","pu address"],
-  dropoff:    ["dropoff","drop-off","drop off","dropoff address","destination","destination address","to","to address","do address"],
-  date:       ["date","pickup date","appointment date","trip date","ride date","service date","inbounddate","inbound date"],
-  time:       ["time","pickup time","appointment time","trip time","ride time"],
+  name:       ["membername","member name","name","passenger","passenger name","client","client name","member","patient","patient name","rider"],
+  memberId:   ["memberid","member id","member#"],
+  age:        ["memberage","member age","age"],
+  tripLeg:    ["triptype","trip type","leg","direction","legtype"],
+  phone:      ["pickupphone","pick up phone","phone","phone number","member phone","passenger phone","contact"],
+  dropPhone:  ["dropoffphone","drop off phone","drop-off phone"],
+  puName:     ["pickupaddressname","pick up address name","pickup name","pickup location","origin name"],
+  puStreet:   ["pickupstreet","pick up street","pickup address","pickup","origin","origin address","from","from address","pu address"],
+  puCity:     ["pickupcity","pick up city","pickup city","origin city"],
+  puState:    ["pickupstate","pick up state","pickup state","origin state"],
+  puZip:      ["pickupzip","pick up zip","pickup zip","origin zip","pickup postal"],
+  puNotes:    ["pickupnotes","pick up notes","pickup notes","origin notes"],
+  doName:     ["dropoffaddressname","drop off address name","dropoff name","destination name"],
+  doStreet:   ["dropoffstreet","drop off street","dropoff address","dropoff","drop-off","destination","destination address","to","to address","do address"],
+  doCity:     ["dropoffcity","drop off city","dropoff city","destination city"],
+  doState:    ["dropoffstate","drop off state","dropoff state","destination state"],
+  doZip:      ["dropoffzip","drop off zip","dropoff zip","destination zip"],
+  doNotes:    ["dropoffnotes","drop off notes","dropoff notes","destination notes"],
+  puTime:     ["pickuptime","pick up time","pickup time","date","pickup date","appointment date","trip date","ride date","service date","time"],
+  doTime:     ["dropofftime","drop off time","dropoff time","appointment time","arrival time"],
   miles:      ["miles","mileage","distance","trip miles","estimated miles"],
   fare:       ["fare","price","cost","amount","rate","total","payout"],
-  vehicleRaw: ["vehicle","vehiclename","vehicle name","vehicle type","los","level of service","service level"],
+  mobility:   ["mobilitytype","mobility type","los","level of service","service level","vehicle","vehiclename","vehicle name","vehicle type"],
   driverRaw:  ["driver","drivername","driver name","assigned driver"],
-  notes:      ["notes","comments","remarks","special instructions","instructions"],
-  tripRaw:    ["trip type","triptype","leg","direction"],
-  claim:      ["claimstatus","claim status"],
-  source:     ["fulfilledby","fulfilled by","broker","source","account"]
+  payor:      ["payor","payer","insurance","plan","funding source"],
+  broker:     ["mediroutesclient","fulfilledby","fulfilled by","broker","source","account"],
+  escorts:    ["escorts","escort"],
+  attendants: ["attendants","attendant"],
+  carSeats:   ["carseats","car seats","car seat"],
+  claimNote:  ["claimnote","claim note","claimstatus","claim status"],
+  notes:      ["notes","comments","remarks","special instructions","instructions"]
 };
 function mapHeaders(headers){
   var map = {};
   headers.forEach(function(h, idx){
-    var k = String(h).trim().toLowerCase();
+    var k = String(h).trim().toLowerCase().replace(/[\s_\-#]/g, "");
     for (var field in ALIASES){
-      if (map[field] == null && ALIASES[field].indexOf(k) > -1) map[field] = idx;
+      if (map[field] == null && ALIASES[field].some(function(al){ return al.replace(/[\s_\-#]/g,"") === k; })) map[field] = idx;
     }
   });
   return map;
@@ -132,15 +154,26 @@ function mapStatus(raw){
   if (s.indexOf("cancel") > -1) return { status:"Cancelled" };
   if (s.indexOf("complet") > -1 || s === "done" || s.indexOf("finish") > -1) return { status:"Completed" };
   if (s.indexOf("pickedup") > -1 || s.indexOf("arrived") > -1 || s.indexOf("onboard") > -1) return { status:"Picked up" };
-  if (s.indexOf("progress") > -1 || s.indexOf("enroute") > -1 || s.indexOf("start") > -1 || s.indexOf("ontheway") > -1) return { status:"En route" };
+  if (s.indexOf("progress") > -1 || s.indexOf("enroute") > -1 || s.indexOf("ontheway") > -1) return { status:"En route" };
   if (s.indexOf("assign") > -1 && s.indexOf("unassign") === -1) return { status:"Assigned" };
-  return { status:"New" }; // scheduled / confirmed / pending / new / anything else
+  return { status:"New" };
 }
-function mapVehicle(raw){
+// MobilityType / vehicle text -> our vehicle + service type
+function mapMobility(raw){
   var s = String(raw || "").toLowerCase();
-  if (s.indexOf("wheelchair") > -1 || s.indexOf("wav") > -1 || /\bwc\b/.test(s)) return "wav";
-  if (s.indexOf("suv") > -1 || s.indexOf("van") > -1) return "suv";
-  return "sedan";
+  if (/wheelchair|wav|\bwc\b/.test(s)) return { vehicle:"wav", service:"wheelchair" };
+  if (/stretcher|gurney/.test(s))        return { vehicle:"wav", service:"other" };
+  if (/\bamb\b|ambulatory/.test(s))     return { vehicle:"sedan", service:"ambulatory" };
+  if (/suv|van/.test(s))                 return { vehicle:"suv", service:"ambulatory" };
+  return { vehicle:"sedan", service:"ambulatory" };
+}
+// TripType A = to the appointment (pick up), B = return (drop off)
+function mapLeg(raw){
+  var s = String(raw || "").trim().toUpperCase();
+  if (s === "A") return { legLabel:"Leg A - to appointment", tripType:"oneway" };
+  if (s === "B") return { legLabel:"Leg B - return home", tripType:"oneway" };
+  if (/ROUND/i.test(raw || "")) return { legLabel:"", tripType:"round" };
+  return { legLabel:"", tripType:"oneway" };
 }
 function mapDate(raw){
   var s = String(raw || "").trim();
@@ -154,12 +187,18 @@ function mapDate(raw){
   }
   var m = s.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
   if (m) return { date: m[1] + "-" + m[2].padStart(2,"0") + "-" + m[3].padStart(2,"0"), time: time };
-  m = s.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+  m = s.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);   // MM-DD-YYYY or MM/DD/YY
   if (m){
     var y = m[3].length === 2 ? "20" + m[3] : m[3];
     return { date: y + "-" + m[1].padStart(2,"0") + "-" + m[2].padStart(2,"0"), time: time };
   }
   return { date:"", time: time };
+}
+function joinAddress(name, street, city, state, zip){
+  var line = [street, city, [state, zip].filter(Boolean).join(" ")].map(function(x){ return String(x||"").trim(); }).filter(Boolean).join(", ");
+  var nm = String(name||"").trim();
+  if (nm && !/^residence$/i.test(nm) && line) return nm + ", " + line;
+  return line || nm;
 }
 
 var PENDING = null; // {docs, updates, skips}
@@ -178,41 +217,70 @@ function buildPreview(headers, rows, filename){
     if (!r.join("").trim()) return;
     var extId = cell(r, "externalId");
     var st = mapStatus(cell(r, "status"));
-    var dt = mapDate(cell(r, "date"));
-    if (!dt.time && cell(r, "time")) dt.time = mapDate("1/1/2000 " + cell(r, "time")).time || "";
-    var vehicleRaw = cell(r, "vehicleRaw");
-    var driverRaw = cell(r, "driverRaw");
-    var src = cell(r, "source") || filename;
+    var pu = mapDate(cell(r, "puTime"));
+    var doT = mapDate(cell(r, "doTime"));
+    var mob = mapMobility(cell(r, "mobility"));
+    var leg = mapLeg(cell(r, "tripLeg"));
+    var pickup = joinAddress(cell(r,"puName"), cell(r,"puStreet"), cell(r,"puCity"), cell(r,"puState"), cell(r,"puZip"));
+    var dropoff = joinAddress(cell(r,"doName"), cell(r,"doStreet"), cell(r,"doCity"), cell(r,"doState"), cell(r,"doZip"));
+    var broker = cell(r, "broker");
+    var payor = cell(r, "payor");
+
     var noteBits = [];
+    if (leg.legLabel) noteBits.push(leg.legLabel);
     if (st.willCall) noteBits.push("Will-call return - client calls when ready");
-    if (cell(r, "notes")) noteBits.push(cell(r, "notes"));
-    if (vehicleRaw && !/unassigned/i.test(vehicleRaw)) noteBits.push("Vehicle in file: " + vehicleRaw);
-    if (driverRaw && !/unassigned/i.test(driverRaw)) noteBits.push("Driver in file: " + driverRaw);
-    if (cell(r, "claim")) noteBits.push("Claim: " + cell(r, "claim"));
+    if (cell(r,"puNotes")) noteBits.push("Pickup notes: " + cell(r,"puNotes").replace(/\s*\n+\s*/g, " "));
+    var dn = cell(r,"doNotes");
+    if (dn && dn !== cell(r,"puNotes")) noteBits.push("Drop-off notes: " + dn.replace(/\s*\n+\s*/g, " "));
+    if (doT.time) noteBits.push("Appointment / drop-off time: " + ISV.fmtTime(doT.time));
+    if (cell(r,"dropPhone") && cell(r,"dropPhone") !== cell(r,"phone")) noteBits.push("Drop-off phone: " + cell(r,"dropPhone"));
+    if (cell(r,"memberId")) noteBits.push("Member ID: " + cell(r,"memberId"));
+    if (cell(r,"age")) noteBits.push("Age: " + cell(r,"age"));
+    if (cell(r,"escorts") && cell(r,"escorts") !== "0") noteBits.push("Escorts: " + cell(r,"escorts"));
+    if (cell(r,"attendants") && cell(r,"attendants") !== "0") noteBits.push("Attendants: " + cell(r,"attendants"));
+    if (cell(r,"carSeats") && cell(r,"carSeats") !== "0") noteBits.push("Car seats: " + cell(r,"carSeats"));
+    if (cell(r,"mobility")) noteBits.push("Mobility: " + cell(r,"mobility"));
+    if (cell(r,"claimNote")) noteBits.push("Claim: " + cell(r,"claimNote"));
+    if (cell(r,"driverRaw") && !/unassigned/i.test(cell(r,"driverRaw"))) noteBits.push("Driver in file: " + cell(r,"driverRaw"));
+    if (cell(r,"notes")) noteBits.push(cell(r,"notes"));
+
+    var pax = 1 + (parseInt(cell(r,"escorts"),10)||0) + (parseInt(cell(r,"attendants"),10)||0);
 
     var doc = {
       id: extId ? "SR-" + extId : ("IST-" + Math.floor(100000 + Math.random()*899999)),
       externalId: extId || null,
-      source: src,
-      name: cell(r, "name") || (extId ? "Saferide ride #" + extId : "Imported ride"),
+      source: broker || filename,
+      payor: payor || broker || "",
+      broker: broker || "",
+      memberId: cell(r,"memberId") || "",
+      legType: String(cell(r,"tripLeg")||"").trim().toUpperCase() || "",
+      name: cell(r, "name") || (extId ? "Trip #" + extId : "Imported ride"),
       phone: cell(r, "phone"),
-      pickup: cell(r, "pickup") || "See broker portal",
-      dropoff: cell(r, "dropoff") || "See broker portal",
-      date: dt.date, time: dt.time,
-      tripType: /round/i.test(cell(r, "tripRaw")) ? "round" : "oneway",
-      vehicle: mapVehicle(vehicleRaw),
+      pickup: pickup || "See broker portal",
+      dropoff: dropoff || "See broker portal",
+      pickupNotes: cell(r,"puNotes") || "",
+      dropoffNotes: dn || "",
+      dropoffTime: doT.time || "",
+      date: pu.date, time: pu.time,
+      tripType: leg.tripType,
+      vehicle: mob.vehicle,
+      service: mob.service,
       willCall: !!st.willCall,
       addOns: { wait:false, assist:false, afterHours:false },
-      pax: "1",
-      notes: noteBits.join(" · "),
+      pax: String(Math.max(1, pax)),
+      notes: noteBits.join(" | "),
       miles: parseFloat(cell(r, "miles")) || 0,
       fare: parseFloat(String(cell(r, "fare")).replace(/[$,]/g, "")) || 0,
       status: st.status,
       driverEmail: null,
       userEmail: null,
       created: Date.now(),
-      log: [{ t: Date.now(), text: "Imported from " + filename }]
+      log: [{ t: Date.now(), text: "Imported from " + filename + (payor ? " - payor " + payor : "") }]
     };
+    if (!doc.fare && doc.miles){
+      var calc = ISV.fare({ vehicle: doc.vehicle, miles: doc.miles, tripType: doc.tripType, addOns: doc.addOns });
+      doc.fare = +calc.total.toFixed(2);
+    }
     if (st.status === "Cancelled") cancelled++;
 
     var existing = ISV.book.byId(doc.id);
@@ -238,7 +306,7 @@ function buildPreview(headers, rows, filename){
       '<td>'+ISV.esc(d.name)+(d.phone?'<div style="font:400 12.5px/1.4 Figtree,sans-serif;color:oklch(0.55 0.015 250);">'+ISV.esc(d.phone)+'</div>':'')+'</td>'+
       '<td style="max-width:260px;">'+ISV.esc(d.pickup)+' <span style="color:oklch(0.60 0.015 250);">→</span> '+ISV.esc(d.dropoff)+'</td>'+
       '<td style="white-space:nowrap;">'+ISV.fmtDate(d.date)+(d.time?' '+ISV.fmtTime(d.time):'')+(d.willCall?'<div style="font:600 11px/1.6 Figtree,sans-serif;color:oklch(0.55 0.13 60);">Will call</div>':'')+'</td>'+
-      '<td>'+ISV.vehicleShort(d.vehicle)+'</td>'+
+      '<td>'+ISV.vehicleShort(d.vehicle)+(d.legType?'<div style="font:600 11px/1.6 Figtree,sans-serif;color:oklch(0.55 0.015 250);">Leg '+d.legType+'</div>':'')+(d.payor?'<div style="font:400 11.5px/1.5 Figtree,sans-serif;color:oklch(0.58 0.015 250);">'+ISV.esc(d.payor)+'</div>':'')+'</td>'+
       '<td>'+ISV.pill(d.status)+'</td><td></td></tr>';
   }).join('');
   document.getElementById('previewWrap').style.display = docs.length ? "flex" : "none";

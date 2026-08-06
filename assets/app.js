@@ -349,26 +349,56 @@
     }
   };
 
-  /* ---------------- phone alerts (free push via ntfy.sh) ---------------- */
-  function notify(topic, title, message) {
-    if (!topic) return Promise.resolve();
-    return fetch("https://ntfy.sh/" + encodeURIComponent(topic), {
+  /* ---------------- email alerts (keyless, via FormSubmit) ---------------- */
+  function sendEmail(subject, body) {
+    var to = C.NOTIFY_EMAIL;
+    if (!to) return Promise.resolve();
+    return fetch("https://formsubmit.co/ajax/" + encodeURIComponent(to), {
       method: "POST",
-      body: message,
-      headers: { "Title": title, "Priority": "high", "Tags": "blue_car" }
+      headers: { "Content-Type": "application/json", "Accept": "application/json" },
+      body: JSON.stringify({ _subject: subject, _template: "table", message: body })
     }).catch(function () {});
   }
   function rideBlurb(b) {
-    return (b.name || "Ride") + "\n" + fmtDate(b.date) + " at " + fmtTime(b.time) + "\n" +
-      (b.pickup || "?") + " -> " + (b.dropoff || "?") + "\n" +
-      vehicleShort(b.vehicle) + " · " + money(b.fare) + " · " + b.id;
+    return [
+      "Ride " + b.id,
+      "Passenger: " + (b.name || "-") + "  " + (b.phone || ""),
+      "Service: " + (serviceLabel(b.service) || vehicleShort(b.vehicle)),
+      "When: " + fmtDate(b.date) + " at " + fmtTime(b.time),
+      "Pickup: " + (b.pickup || "-"),
+      "Drop-off: " + (b.dropoff || "-"),
+      "Trip: " + (b.tripType === "round" ? "Round trip" : "One way") + ", " + (b.miles || 0) + " mi",
+      "Fare estimate: " + money(b.fare),
+      b.notes ? "Notes: " + b.notes : ""
+    ].filter(Boolean).join("\n");
   }
-  function notifyDispatch(title, message) {
-    return notify((C.NOTIFY || {}).DISPATCH_TOPIC, title, message);
+  function notifyNewBooking(b) {
+    return sendEmail("New ride request " + b.id + " - " + (b.name || ""), rideBlurb(b));
   }
-  function notifyDriver(email, title, message) {
-    var p = GRANTS[norm(email)] || {};
-    return notify(p.ntfyTopic, title, message);
+  function notifyAccepted(b, driverName) {
+    return sendEmail("Ride " + b.id + " accepted by " + driverName, driverName + " accepted this ride.\n\n" + rideBlurb(b));
+  }
+  function notifyDeclined(b, driverName, reason) {
+    return sendEmail("Ride " + b.id + " declined by " + driverName,
+      driverName + " can't take this ride." + (reason ? "\nReason: " + reason : "") + "\nIt needs reassigning.\n\n" + rideBlurb(b));
+  }
+  /* prefilled SMS / call links for texting drivers from the console */
+  function telHref(phone) { return "tel:" + String(phone || "").replace(/[^0-9+]/g, ""); }
+  function smsHref(phone, body) {
+    var num = String(phone || "").replace(/[^0-9+]/g, "");
+    var ua = navigator.userAgent || "";
+    var sep = /iPhone|iPad|iPod|Macintosh/i.test(ua) ? "&" : "?";
+    return "sms:" + num + sep + "body=" + encodeURIComponent(body);
+  }
+  function driverRideText(b, driverName) {
+    return (driverName ? driverName + ", " : "") + "you've got a ride from " + C.COMPANY + ".\n" +
+      fmtDate(b.date) + " at " + fmtTime(b.time) + "\n" +
+      (b.name || "Passenger") + (b.phone ? " (" + b.phone + ")" : "") + "\n" +
+      "Pickup: " + (b.pickup || "-") + "\n" +
+      "Drop-off: " + (b.dropoff || "-") + "\n" +
+      (serviceLabel(b.service) || vehicleShort(b.vehicle)) + ", " + (b.tripType === "round" ? "round trip" : "one way") + "\n" +
+      (b.notes ? "Notes: " + b.notes + "\n" : "") +
+      "Ride " + b.id + " - open your driver console to accept.";
   }
 
   /* ---------------- bookings ---------------- */
@@ -425,7 +455,7 @@
           BOOKINGS.push(b);
           try { sessionStorage.setItem("isv_last_booking", JSON.stringify(b)); } catch (e) {}
           fireChange();
-          notifyDispatch("New ride request " + b.id, rideBlurb(b));
+          notifyNewBooking(b);
           return b;
         }, function (e) { throw friendly(e); });
     },
@@ -477,22 +507,32 @@
   /* ---------------- fare ---------------- */
   function money(n) { return "$" + Number(n || 0).toFixed(2); }
   function fare(s) {
-    var round = s.tripType === "round";
-    var miles = Number(s.miles || 0) * (round ? 2 : 1);
-    var base = round ? C.BASE_ROUND : C.BASE_ONEWAY;
-    var perMile = (C.PER_MILE[s.vehicle] != null ? C.PER_MILE[s.vehicle] : C.PER_MILE.sedan);
-    var mileage = miles * perMile;
-    var vehicleFee = C.VEHICLE_FEE[s.vehicle] || 0;
+    var vehicle = s.vehicle || "sedan";
+    var base = (C.BASE[vehicle] != null ? C.BASE[vehicle] : C.BASE.sedan);
+    var perMile = (C.PER_MILE[vehicle] != null ? C.PER_MILE[vehicle] : C.PER_MILE.sedan);
+    var legs = s.tripType === "round" ? (C.ROUND_TRIP_MULTIPLIER || 2) : 1;
+    var oneWay = Number(s.miles || 0);
+    var totalMiles = oneWay * legs;
+    var free = C.FREE_MILES || 0;
+    var billable = Math.max(0, totalMiles - free);
+    var mileage = billable * perMile;
+    var baseTotal = base * legs;
     var a = s.addOns || {};
-    var wait = a.wait ? C.ADDON_WAIT : 0, assist = a.assist ? C.ADDON_ASSIST : 0, after = a.afterHours ? C.ADDON_AFTERHOURS : 0;
+    var assist = a.assist ? (C.ADDON_ASSIST || 0) : 0;
+    var after = a.afterHours ? (C.ADDON_AFTERHOURS || 0) : 0;
     var rows = [];
-    if (base) rows.push({ label: round ? "Round-trip base fare" : "Base fare", amount: money(base) });
-    rows.push({ label: miles + " mi × " + money(perMile), amount: money(mileage) });
-    if (vehicleFee) rows.push({ label: s.vehicle === "wav" ? "Wheelchair van" : "SUV", amount: money(vehicleFee) });
-    if (wait) rows.push({ label: "Driver waits at appointment", amount: money(wait) });
+    rows.push({ label: (legs > 1 ? "Base fare x2 (round trip)" : "Base fare") + " - " + vehicleShort(vehicle), amount: money(baseTotal) });
+    rows.push({ label: free + " free miles included", amount: "included" });
+    if (billable > 0) rows.push({ label: Math.round(billable * 10) / 10 + " mi over x " + money(perMile), amount: money(mileage) });
+    else rows.push({ label: totalMiles + " mi total, under the free allowance", amount: money(0) });
     if (assist) rows.push({ label: "Door-through-door assist", amount: money(assist) });
     if (after) rows.push({ label: "Before 6am / after 8pm", amount: money(after) });
-    return { total: base + mileage + vehicleFee + wait + assist + after, rows: rows, miles: miles };
+    if (a.wait) rows.push({ label: "First hour of wait time", amount: "free" });
+    return { total: baseTotal + mileage + assist + after, rows: rows, miles: totalMiles };
+  }
+  function serviceLabel(id) {
+    var t = (C.SERVICE_TYPES || []).find(function (x) { return x.id === id; });
+    return t ? t.label : "";
   }
   function vehicleName(v) { return v === "wav" ? "Wheelchair-accessible van" : v === "suv" ? "SUV" : "Sedan"; }
   function vehicleShort(v) { return v === "wav" ? "Wheelchair van" : v === "suv" ? "SUV" : "Sedan"; }
@@ -536,7 +576,10 @@
   function footer(root) {
     return '<footer style="border-top:1px solid oklch(0.93 0.01 250);background:#fff;">' +
       '<div style="max-width:1180px;margin:0 auto;padding:48px 32px;display:flex;align-items:flex-start;justify-content:space-between;gap:40px;flex-wrap:wrap;">' +
+      '<div style="display:flex;flex-direction:column;gap:10px;">' +
       '<div style="display:flex;align-items:center;gap:11px;">' + logo(28) + '</div>' +
+      '<span style="font:400 13.5px/1.6 Figtree,sans-serif;color:oklch(0.55 0.015 250);max-width:280px;">Family and veteran owned LLC, serving the ' + C.AREA + ' since ' + C.EST_YEAR + '.</span>' +
+      '</div>' +
       '<div style="display:flex;gap:56px;flex-wrap:wrap;">' +
       '<div style="display:flex;flex-direction:column;gap:10px;"><span style="font:600 11px/1 Barlow,sans-serif;letter-spacing:0.16em;text-transform:uppercase;color:oklch(0.62 0.11 237);">Contact</span>' +
       '<a href="tel:' + C.PHONE_TEL + '" style="font:500 15px/1 Figtree,sans-serif;">' + C.PHONE_DISPLAY + '</a>' +
@@ -603,7 +646,8 @@
     onChange: function (fn) { changeHandlers.push(fn); },
     bootstrapped: function () { return BOOTSTRAPPED; },
     dbError: function () { return DBERROR; },
-    notifyDispatch: notifyDispatch, notifyDriver: notifyDriver, rideBlurb: rideBlurb,
+    sendEmail: sendEmail, notifyNewBooking: notifyNewBooking, notifyAccepted: notifyAccepted, notifyDeclined: notifyDeclined,
+    rideBlurb: rideBlurb, telHref: telHref, smsHref: smsHref, driverRideText: driverRideText, serviceLabel: serviceLabel,
     money: money, fare: fare, vehicleName: vehicleName, vehicleShort: vehicleShort,
     logo: logo, header: header, footer: footer, sidebar: sidebar, pill: pill,
     fmtDate: fmtDate, fmtTime: fmtTime, esc: esc, tripLine: tripLine, mapsUrl: mapsUrl, mapLink: mapLink

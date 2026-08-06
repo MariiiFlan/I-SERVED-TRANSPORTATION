@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Booking - I Served Dispatch</title>
+<link rel="icon" href="../../favicon.ico" sizes="any">
+<link rel="icon" type="image/png" href="../../images/favicon-32.png">
+<link rel="apple-touch-icon" href="../../images/favicon-180.png">
+
 <link rel="stylesheet" href="../../assets/base.css">
 <style>body{background:oklch(0.975 0.006 250);}</style>
 </head>
@@ -27,6 +31,7 @@ var id = new URLSearchParams(location.search).get('id');
 
 document.getElementById('side').innerHTML = ISV.sidebar("../../", "dash", "Dispatch console", [
   { id:"dash", label:"Dashboard", href:"../dashboard/" },
+  { id:"sched", label:"Schedules", href:"../schedules/" },
   { id:"team", label:"Team", href:"../team/" },
   { id:"rep",  label:"Reports", href:"../reports/" }
 ]);
@@ -58,6 +63,8 @@ function editForm(b){
       '<select id="eTrip" class="inp"><option value="oneway"'+(b.tripType!=="round"?" selected":"")+'>One way</option><option value="round"'+(b.tripType==="round"?" selected":"")+'>Round trip</option></select></div>'+
       '<div style="display:flex;flex-direction:column;gap:7px;"><label class="lbl">Vehicle</label>'+
       '<select id="eVehicle" class="inp"><option value="sedan"'+(b.vehicle==="sedan"?" selected":"")+'>Sedan</option><option value="suv"'+(b.vehicle==="suv"?" selected":"")+'>SUV</option><option value="wav"'+(b.vehicle==="wav"?" selected":"")+'>Wheelchair van</option></select></div>'+
+      '<div style="display:flex;flex-direction:column;gap:7px;"><label class="lbl">Type of service</label>'+
+      '<select id="eService" class="inp">'+(CONFIG.SERVICE_TYPES||[]).map(function(t){ return '<option value="'+t.id+'"'+(b.service===t.id?" selected":"")+'>'+t.label+'</option>'; }).join('')+'</select></div>'+
       '<div style="display:flex;flex-direction:column;gap:7px;"><label class="lbl">Riding along</label>'+
       '<select id="ePax" class="inp">'+[1,2,3,4].map(function(n){ return '<option value="'+n+'"'+(String(b.pax)===String(n)?" selected":"")+'>'+(n===1?"Just the passenger":"Passenger + "+(n-1))+'</option>'; }).join('')+'</select></div>'+
     '</div>'+
@@ -87,7 +94,7 @@ function readEditForm(){
     name: v('eName').trim(), phone: v('ePhone').trim(),
     pickup: v('ePickup').trim(), dropoff: v('eDropoff').trim(),
     date: v('eDate'), time: v('eTime'),
-    tripType: trip, vehicle: v('eVehicle'), pax: v('ePax'),
+    tripType: trip, vehicle: v('eVehicle'), service: v('eService'), pax: v('ePax'),
     miles: parseFloat(v('eMiles')) || 0,
     addOns: { wait: document.getElementById('eAdd_wait').checked, assist: document.getElementById('eAdd_assist').checked, afterHours: document.getElementById('eAdd_afterHours').checked },
     notes: v('eNotes').trim(),
@@ -124,7 +131,8 @@ function render(){
         '<div style="padding:16px 24px;background:oklch(0.985 0.008 237);border-bottom:1px solid oklch(0.93 0.01 250);font:700 14px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.45 0.02 250);">Trip</div>'+
         '<div style="padding:8px 24px 16px;">'+
           [["Pickup", ISV.mapLink(b.pickup), true], ["Destination", ISV.mapLink(b.dropoff), true], ["Date", ISV.fmtDate(b.date)+", "+(b.date||"").slice(0,4)], ["Appointment time", ISV.fmtTime(b.time)],
-           ["Trip type", (b.tripType==="round"?"Round trip":"One way")+" · "+b.miles+" mi total"], ["Vehicle", ISV.vehicleName(b.vehicle)]]
+           ["Trip type", (b.tripType==="round"?"Round trip":"One way")+" · "+b.miles+" mi total"], ["Vehicle", ISV.vehicleName(b.vehicle)],
+           ["Service", ISV.serviceLabel(b.service) || "Not specified"], ["Payor", b.payor || "Private pay"]]
           .map(function(r){ return '<div style="display:grid;grid-template-columns:170px 1fr;gap:16px;padding:12px 0;border-bottom:1px solid oklch(0.96 0.006 250);">'+
             '<span style="font:500 14px/1.5 Figtree,sans-serif;color:oklch(0.56 0.015 250);">'+r[0]+'</span>'+
             '<span style="font:600 15px/1.5 Figtree,sans-serif;color:oklch(0.30 0.02 250);">'+(r[2] ? r[1] : ISV.esc(r[1]))+'</span></div>'; }).join('')+
@@ -173,6 +181,21 @@ function render(){
           }).join('')
           : '<span style="font:400 14px/1.6 Figtree,sans-serif;color:oklch(0.55 0.015 250);">No drivers yet - add one on the <a href="../team/">Team</a> page (promote an account to driver by email).</span>')+
         '</div>'+
+        (b.driverEmail ? (function(){
+          var dp = ISV.auth.profile(b.driverEmail) || {};
+          var dacc = ISV.auth.accounts().find(function(u){ return u.email === b.driverEmail; }) || {};
+          var dphone = dp.phone || dacc.phone || "";
+          var msg = ISV.driverRideText(b, dacc.name || "");
+          return '<div style="display:flex;flex-direction:column;gap:10px;padding-top:4px;">'+
+            (dphone
+              ? '<div style="display:flex;gap:10px;flex-wrap:wrap;">'+
+                  '<a class="btn" style="padding:12px 18px;font-size:14px;display:inline-block;" href="'+ISV.telHref(dphone)+'">Call driver</a>'+
+                  '<a class="btn2" style="padding:12px 18px;font-size:14px;display:inline-block;" href="'+ISV.smsHref(dphone, msg)+'">Text ride details</a>'+
+                '</div>'+
+                '<span style="font:400 12.5px/1.5 Figtree,sans-serif;color:oklch(0.58 0.015 250);">"Text ride details" opens your messages with the whole trip already written out - just hit send.</span>'
+              : '<span style="font:400 13px/1.6 Figtree,sans-serif;color:oklch(0.55 0.13 60);">No phone number saved for this driver. Add one on the <a href="../team/">Team</a> page to call or text them from here.</span>')+
+          '</div>';
+        })() : '')+
         (b.driverEmail ? '<button class="btn2" id="unassign" style="padding:11px;font-size:14px;">Unassign</button>' : '')+
         '<span style="font:400 12.5px/1.55 Figtree,sans-serif;color:oklch(0.58 0.015 250);">The ride appears in the driver\'s console the moment you assign it. (Text alerts hook in here when SMS is connected - see README.)</span>'+
       '</div>'+
@@ -214,8 +237,6 @@ function render(){
       var email = this.getAttribute('data-assign');
       var d = ISV.auth.accounts().find(function(u){ return u.email === email; });
       ISV.book.update(id, { driverEmail: email, status: "Assigned" }, "Assigned to " + (d ? d.name : email) + " by " + me.name);
-      var bb = ISV.book.byId(id);
-      if (bb) ISV.notifyDriver(email, "New ride assigned to you", ISV.rideBlurb(bb) + "\nOpen your driver console to accept.");
       render();
     };
   });

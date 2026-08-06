@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ride Requested - I Served Transportation</title>
+<link rel="icon" href="../favicon.ico" sizes="any">
+<link rel="icon" type="image/png" href="../images/favicon-32.png">
+<link rel="apple-touch-icon" href="../images/favicon-180.png">
+
 <link rel="stylesheet" href="../assets/base.css">
 </head>
 <body>
@@ -76,6 +80,7 @@ if (b){
     ["Pickup", b.pickup],
     ["Destination", b.dropoff],
     ["Appointment", (ISV.fmtDate(b.date)) + (b.time ? " at " + ISV.fmtTime(b.time) : "")],
+    ["Service", ISV.serviceLabel(b.service) || "-"],
     ["Vehicle", ISV.vehicleName(b.vehicle)],
     ["Distance", b.miles + " mi total"],
     ["Notes", b.notes || "None"]

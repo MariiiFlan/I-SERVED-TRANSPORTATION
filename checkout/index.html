@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Checkout - I Served Transportation</title>
+<link rel="icon" href="../favicon.ico" sizes="any">
+<link rel="icon" type="image/png" href="../images/favicon-32.png">
+<link rel="apple-touch-icon" href="../images/favicon-180.png">
+
 <link rel="stylesheet" href="../assets/base.css">
 </head>
 <body>
@@ -104,6 +108,7 @@ var rows = [
   ["Pickup", draft.pickup],
   ["Destination", draft.dropoff],
   ["Appointment", ISV.fmtDate(draft.date) + (draft.time ? " at " + ISV.fmtTime(draft.time) : "")],
+  ["Service", ISV.serviceLabel(draft.service) || "-"],
   ["Vehicle", ISV.vehicleName(draft.vehicle)],
   ["Distance", draft.miles + " mi total" + (draft.routedMiles ? " (measured route)" : "")]
 ];

@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dashboard - I Served Dispatch</title>
+<link rel="icon" href="../../favicon.ico" sizes="any">
+<link rel="icon" type="image/png" href="../../images/favicon-32.png">
+<link rel="apple-touch-icon" href="../../images/favicon-180.png">
+
 <link rel="stylesheet" href="../../assets/base.css">
 <style>body{background:oklch(0.975 0.006 250);}</style>
 </head>
@@ -33,6 +37,7 @@
       <input id="search" class="inp" placeholder="Search passenger, address, or ID" style="max-width:340px;padding:12px 14px;font-size:14px;">
       <select id="fDriver" class="inp" style="max-width:190px;padding:12px 14px;font-size:14px;"><option value="">All drivers</option></select>
       <div id="chips" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
+      <button class="btn2" id="trashAll" style="padding:11px 16px;font-size:13.5px;color:oklch(0.50 0.15 25);border-color:oklch(0.88 0.04 25);margin-left:auto;">Trash all shown</button>
     </div>
 
     <div id="trashBar" style="display:none;align-items:center;justify-content:space-between;gap:14px;padding:14px 18px;border:1px solid oklch(0.90 0.03 25);background:oklch(0.98 0.008 25);border-radius:12px;flex-wrap:wrap;">
@@ -69,6 +74,7 @@ function unassignedCount(){ return ISV.book.all().filter(function(b){ return !b.
 function sidebar(){
   document.getElementById('side').innerHTML = ISV.sidebar("../../", "dash", "Dispatch console", [
     { id:"dash", label:"Dashboard", href:"../dashboard/", badge: unassignedCount() || "" },
+    { id:"sched", label:"Schedules", href:"../schedules/" },
     { id:"team", label:"Team", href:"../team/" },
     { id:"rep",  label:"Reports", href:"../reports/" }
   ]);
@@ -78,6 +84,7 @@ var now = new Date();
 document.getElementById('today').textContent = now.toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
 
 var FILTERS = ["All","New","Assigned","En route","Completed","Cancelled","Trash"];
+var VISIBLE = [];
 var fStatus = "All";
 function bucket(s){ // group live statuses into mockup buckets
   if (s === "Accepted") return "Assigned";
@@ -149,6 +156,8 @@ function rows(){
     return true;
   });
   document.getElementById('trashBar').style.display = inTrash ? "flex" : "none";
+  VISIBLE = list;
+  document.getElementById('trashAll').style.display = inTrash ? "none" : "";
   document.getElementById('emptyState').style.display = ISV.book.all().length ? "none" : "block";
   document.getElementById('rows').innerHTML = list.map(function(b){
     var dn = driverName(b.driverEmail);
@@ -157,7 +166,7 @@ function rows(){
       '<td><div style="font:600 14px/1.4 Figtree,sans-serif;color:oklch(0.28 0.02 250);">'+ISV.esc(b.name)+'</div>'+
       '<div style="font:400 13px/1.4 Figtree,sans-serif;color:oklch(0.55 0.015 250);">'+ISV.esc(b.phone)+'</div></td>'+
       '<td><div style="max-width:280px;">'+ISV.mapLink(b.pickup)+' <span style="color:oklch(0.60 0.015 250);">→</span> '+ISV.mapLink(b.dropoff)+'</div>'+
-      '<div style="font:400 12.5px/1.4 Figtree,sans-serif;color:oklch(0.55 0.015 250);">'+ISV.tripLine(b)+'</div></td>'+
+      '<div style="font:400 12.5px/1.4 Figtree,sans-serif;color:oklch(0.55 0.015 250);">'+(ISV.serviceLabel(b.service) ? ISV.serviceLabel(b.service)+' · ' : '')+ISV.tripLine(b)+(b.payor ? ' · '+ISV.esc(b.payor) : '')+'</div></td>'+
       '<td style="white-space:nowrap;"><div style="font:600 13.5px/1.4 Figtree,sans-serif;">'+ISV.fmtDate(b.date)+'</div>'+
       '<div style="font:400 13px/1.4 Figtree,sans-serif;color:oklch(0.55 0.015 250);">'+ISV.fmtTime(b.time)+'</div></td>'+
       '<td>'+(dn ? '<span style="font:500 13.5px/1.4 Figtree,sans-serif;">'+ISV.esc(dn)+'</span>'
@@ -179,6 +188,16 @@ function rows(){
 
 document.getElementById('search').addEventListener('input', rows);
 document.getElementById('fDriver').addEventListener('change', rows);
+
+document.getElementById('trashAll').onclick = function(){
+  var n = VISIBLE.length;
+  if (!n){ alert("Nothing shown to trash."); return; }
+  var what = fStatus === "All" ? "all " + n + " bookings currently shown" : n + " \"" + fStatus + "\" bookings";
+  if (confirm("Move " + what + " to the trash? You can restore them from the Trash tab.")){
+    VISIBLE.slice().forEach(function(b){ ISV.book.moveToTrash(b.id, me.name); });
+    refresh();
+  }
+};
 
 document.getElementById('clearTrash').onclick = function(){
   var n = ISV.book.trash().length;

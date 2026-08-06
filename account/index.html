@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Account - I Served Transportation</title>
+<link rel="icon" href="../favicon.ico" sizes="any">
+<link rel="icon" type="image/png" href="../images/favicon-32.png">
+<link rel="apple-touch-icon" href="../images/favicon-180.png">
+
 <link rel="stylesheet" href="../assets/base.css">
 <style>
 @media (max-width: 900px) {
@@ -19,29 +23,32 @@
       <a href="../" style="color:inherit;" id="logoSlot"></a>
 
       <div style="display:flex;flex-direction:column;gap:8px;">
-        <h1 id="title" style="margin:0;font:700 38px/1.05 'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:0.01em;">Sign in</h1>
-        <p id="subtitle" style="margin:0;font:400 15px/1.6 Figtree,sans-serif;color:oklch(0.50 0.015 250);">One account for everything - booking rides, driving, or running dispatch.</p>
+        <h1 id="title" style="margin:0;font:700 38px/1.05 'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:0.01em;">Create your account</h1>
+        <p id="subtitle" style="margin:0;font:400 15px/1.6 Figtree,sans-serif;color:oklch(0.50 0.015 250);">One account for everything: booking rides, tracking them, driving, or running dispatch.</p>
       </div>
 
       <div id="notice" style="display:none;padding:13px 16px;border-radius:10px;background:oklch(0.96 0.03 85);font:500 14px/1.5 Figtree,sans-serif;color:oklch(0.42 0.09 75);"></div>
 
       <!-- SIGN IN -->
-      <div id="signinForm" style="display:flex;flex-direction:column;gap:14px;">
+      <div id="signinForm" style="display:none;flex-direction:column;gap:14px;">
         <div style="display:flex;flex-direction:column;gap:7px;">
           <label class="lbl">Email</label>
           <input id="siEmail" type="email" class="inp" placeholder="you@email.com" autocomplete="email">
         </div>
         <div style="display:flex;flex-direction:column;gap:7px;">
           <label class="lbl">Password</label>
-          <input id="siPass" type="password" class="inp" placeholder="Your password" autocomplete="current-password">
+          <div style="position:relative;">
+            <input id="siPass" type="password" class="inp" placeholder="Your password" autocomplete="current-password" style="padding-right:64px;">
+            <button type="button" data-see="siPass" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:0;cursor:pointer;padding:8px 10px;font:600 13px/1 Figtree,sans-serif;color:oklch(0.50 0.115 238);">Show</button>
+          </div>
         </div>
         <button class="btn" id="siGo">Sign in</button>
         <span id="siErr" class="err"></span>
-        <span style="font:400 14px/1.6 Figtree,sans-serif;color:oklch(0.52 0.015 250);">New here? <a href="#" id="showCreate">Create an account</a> - it takes 30 seconds.</span>
+
       </div>
 
       <!-- CREATE -->
-      <div id="createForm" style="display:none;flex-direction:column;gap:14px;">
+      <div id="createForm" style="display:flex;flex-direction:column;gap:14px;">
         <div style="display:flex;flex-direction:column;gap:7px;">
           <label class="lbl">Full name</label>
           <input id="crName" class="inp" placeholder="First and last name" autocomplete="name">
@@ -56,15 +63,31 @@
         </div>
         <div style="display:flex;flex-direction:column;gap:7px;">
           <label class="lbl">Password</label>
-          <input id="crPass" type="password" class="inp" placeholder="At least 6 characters" autocomplete="new-password">
+          <div style="position:relative;">
+            <input id="crPass" type="password" class="inp" placeholder="At least 6 characters" autocomplete="new-password" style="padding-right:64px;">
+            <button type="button" data-see="crPass" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:0;cursor:pointer;padding:8px 10px;font:600 13px/1 Figtree,sans-serif;color:oklch(0.50 0.115 238);">Show</button>
+          </div>
         </div>
         <button class="btn" id="crGo">Create account</button>
         <span id="crErr" class="err"></span>
-        <span style="font:400 14px/1.6 Figtree,sans-serif;color:oklch(0.52 0.015 250);">Already have one? <a href="#" id="showSignin">Sign in</a></span>
+
       </div>
 
       <div style="height:1px;background:oklch(0.94 0.008 250);"></div>
-      <span style="font:400 13px/1.6 Figtree,sans-serif;color:oklch(0.58 0.015 250);">Drivers and dispatch: use the same sign-in. The owner controls who gets driver or owner access from the console.</span>
+
+      <div id="returningBlock" style="padding:18px 20px;border:1px solid oklch(0.89 0.03 237);border-radius:13px;background:oklch(0.98 0.01 237);display:flex;flex-direction:column;gap:8px;">
+        <span style="font:700 16px/1.3 Figtree,sans-serif;color:oklch(0.30 0.02 250);">Rode with us before?</span>
+        <span style="font:400 14px/1.6 Figtree,sans-serif;color:oklch(0.48 0.015 250);">Welcome back. Sign in to see your ride history, track today's trip, and rebook a past route in one tap.</span>
+        <a href="#" id="showSignin" style="font:700 15px/1 Figtree,sans-serif;margin-top:2px;">Sign in to my rides -&gt;</a>
+      </div>
+
+      <div id="newBlock" style="display:none;padding:18px 20px;border:1px solid oklch(0.92 0.012 250);border-radius:13px;background:oklch(0.99 0.004 250);display:none;flex-direction:column;gap:8px;">
+        <span style="font:700 16px/1.3 Figtree,sans-serif;color:oklch(0.30 0.02 250);">First time here?</span>
+        <span style="font:400 14px/1.6 Figtree,sans-serif;color:oklch(0.48 0.015 250);">Creating an account takes about 30 seconds and keeps every ride you book in one place.</span>
+        <a href="#" id="showCreate" style="font:700 15px/1 Figtree,sans-serif;margin-top:2px;">Create an account -&gt;</a>
+      </div>
+
+      <span style="font:400 13px/1.6 Figtree,sans-serif;color:oklch(0.58 0.015 250);">Drivers and dispatch use this same sign-in. The owner controls who gets driver or owner access from the console.</span>
     </div>
   </div>
 
@@ -125,21 +148,29 @@ if (!ISV.bootstrapped()){
   var n2 = document.getElementById('notice');
   n2.style.display = "block";
   n2.textContent = "No accounts exist yet - the first account created becomes the Owner account.";
-  document.getElementById('signinForm').style.display = "none";
-  document.getElementById('createForm').style.display = "flex";
+  showCreateView();
   document.getElementById('title').textContent = "Create the first account";
 }
 
-document.getElementById('showCreate').onclick = function(e){ e.preventDefault();
+function showCreateView(){
   document.getElementById('signinForm').style.display = "none";
   document.getElementById('createForm').style.display = "flex";
-  document.getElementById('title').textContent = "Create account";
-};
-document.getElementById('showSignin').onclick = function(e){ e.preventDefault();
+  document.getElementById('title').textContent = "Create your account";
+  document.getElementById('subtitle').textContent = "One account for everything: booking rides, tracking them, driving, or running dispatch.";
+  document.getElementById('returningBlock').style.display = "flex";
+  document.getElementById('newBlock').style.display = "none";
+}
+function showSigninView(){
   document.getElementById('createForm').style.display = "none";
   document.getElementById('signinForm').style.display = "flex";
-  document.getElementById('title').textContent = "Sign in";
-};
+  document.getElementById('title').textContent = "Welcome back";
+  document.getElementById('subtitle').textContent = "Sign in to see your ride history and track today's trip.";
+  document.getElementById('returningBlock').style.display = "none";
+  document.getElementById('newBlock').style.display = "flex";
+}
+document.getElementById('showCreate').onclick = function(e){ e.preventDefault(); showCreateView(); };
+document.getElementById('showSignin').onclick = function(e){ e.preventDefault(); showSigninView(); };
+if (next || denied) showSigninView(); // came from a gated page - they already have an account
 
 document.getElementById('siGo').onclick = async function(){
   var err = document.getElementById('siErr'); err.textContent = "";
@@ -160,6 +191,15 @@ document.getElementById('crGo').onclick = async function(){
     location.href = homeFor(role);
   } catch(e){ err.textContent = e; }
 };
+document.querySelectorAll('[data-see]').forEach(function(btn){
+  btn.onclick = function(){
+    var f = document.getElementById(this.getAttribute('data-see'));
+    var showing = f.type === "text";
+    f.type = showing ? "password" : "text";
+    this.textContent = showing ? "Show" : "Hide";
+    f.focus();
+  };
+});
 ['siPass','crPass'].forEach(function(id){
   document.getElementById(id).addEventListener('keydown', function(e){
     if (e.key === 'Enter') document.getElementById(id === 'siPass' ? 'siGo' : 'crGo').click();

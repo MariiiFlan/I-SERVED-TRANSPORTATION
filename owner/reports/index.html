@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Reports - I Served Dispatch</title>
+<link rel="icon" href="../../favicon.ico" sizes="any">
+<link rel="icon" type="image/png" href="../../images/favicon-32.png">
+<link rel="apple-touch-icon" href="../../images/favicon-180.png">
+
 <link rel="stylesheet" href="../../assets/base.css">
 <style>body{background:oklch(0.975 0.006 250);}</style>
 </head>
@@ -51,6 +55,7 @@ var me = ISV.auth.require("owner", "/owner/reports/");
 if (me){
 document.getElementById('side').innerHTML = ISV.sidebar("../../", "rep", "Dispatch console", [
   { id:"dash", label:"Dashboard", href:"../dashboard/" },
+  { id:"sched", label:"Schedules", href:"../schedules/" },
   { id:"team", label:"Team", href:"../team/" },
   { id:"rep",  label:"Reports", href:"../reports/" }
 ]);

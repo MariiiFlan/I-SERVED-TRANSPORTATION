@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Team - I Served Dispatch</title>
+<link rel="icon" href="../../favicon.ico" sizes="any">
+<link rel="icon" type="image/png" href="../../images/favicon-32.png">
+<link rel="apple-touch-icon" href="../../images/favicon-180.png">
+
 <link rel="stylesheet" href="../../assets/base.css">
 <style>body{background:oklch(0.975 0.006 250);}</style>
 </head>
@@ -42,7 +46,7 @@
       </div>
       <div class="grid2" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
         <div style="display:flex;flex-direction:column;gap:7px;">
-          <label class="lbl">Phone (optional)</label>
+          <label class="lbl">Mobile number (needed to text them rides)</label>
           <input id="fPhone" class="inp" placeholder="(000) 000-0000">
         </div>
         <div style="display:flex;flex-direction:column;gap:7px;">
@@ -65,18 +69,7 @@
       </table>
     </div>
 
-    <div class="card" style="gap:10px;">
-      <span style="font:700 14px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.45 0.02 250);">Phone alerts setup</span>
-      <span style="font:400 14px/1.7 Figtree,sans-serif;color:oklch(0.45 0.015 250);">
-        Free push notifications through the <b>ntfy</b> app (App Store / Play Store). One-time setup per person:<br>
-        <b>1.</b> Install ntfy &nbsp; <b>2.</b> Tap + (Subscribe to topic) &nbsp; <b>3.</b> Type the topic name exactly.<br>
-        <b>Owner:</b> subscribe to <span id="dispatchTopic" style="font-weight:700;color:oklch(0.45 0.09 240);"></span> to get every new ride request and every driver decline.<br>
-        <b>Drivers:</b> each driver subscribes to their own topic shown in the table above. Assigning them a ride buzzes their phone instantly.<br>
-        Keep topic names private - they work like a password.
-      </span>
-    </div>
-
-    <div class="card" style="gap:10px;">
+        <div class="card" style="gap:10px;">
       <span style="font:700 14px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.45 0.02 250);">All client accounts</span>
       <span style="font:400 14px/1.6 Figtree,sans-serif;color:oklch(0.52 0.015 250);">Everyone who has created an account. Promote any of them with the form above - just use their email.</span>
       <div id="clientRows" style="display:flex;flex-direction:column;"></div>
@@ -96,6 +89,7 @@ var me = ISV.auth.require("owner", "/owner/team/");
 if (me){
 document.getElementById('side').innerHTML = ISV.sidebar("../../", "team", "Dispatch console", [
   { id:"dash", label:"Dashboard", href:"../dashboard/" },
+  { id:"sched", label:"Schedules", href:"../schedules/" },
   { id:"team", label:"Team", href:"../team/" },
   { id:"rep",  label:"Reports", href:"../reports/" }
 ]);
@@ -120,13 +114,11 @@ document.getElementById('saveMember').onclick = function(){
   var role = document.getElementById('fRole').value;
   ISV.auth.setRole(email, role);
   if (role === "driver"){
-    var existingProfile = ISV.auth.profile(email);
     ISV.auth.saveProfile(email, {
       vehicle: document.getElementById('fVehicle').value,
       phone: document.getElementById('fPhone').value.trim(),
       cred: document.getElementById('fCred').value.trim(),
-      active: true,
-      ntfyTopic: existingProfile.ntfyTopic || ("iserved-drv-" + Math.random().toString(36).slice(2,10))
+      active: true
     });
   }
   var existing = ISV.auth.accounts().find(function(u){ return u.email === email && !u.pending; });
@@ -150,7 +142,7 @@ function render(){
         (u.role==="driver" && !active ? '<span style="padding:5px 11px;border-radius:999px;background:oklch(0.95 0.008 250);font:600 12px/1 Figtree,sans-serif;color:oklch(0.50 0.015 250);">Inactive</span>' : '')+
       '</div>'+(u.role==="driver" && p.vehicle ? '<div style="font:400 13px/1.5 Figtree,sans-serif;color:oklch(0.55 0.015 250);margin-top:4px;">'+ISV.esc(p.vehicle)+'</div>' : '')+'</td>'+
       '<td style="font:400 13.5px/1.5 Figtree,sans-serif;color:oklch(0.45 0.015 250);">'+ISV.esc(p.cred || "-")+
-        (p.ntfyTopic ? '<div style="margin-top:6px;font:500 12px/1.5 Figtree,sans-serif;color:oklch(0.55 0.015 250);">Ride alerts: <a href="https://ntfy.sh/'+ISV.esc(p.ntfyTopic)+'" target="_blank" rel="noopener" style="font-weight:600;">'+ISV.esc(p.ntfyTopic)+'</a></div>' : '')+'</td>'+
+'</td>'+
       '<td style="font:600 13.5px/1.5 Figtree,sans-serif;">'+(u.role==="driver" || u.role==="owner" ? weekCount(u.email) + " rides" : "-")+'</td>'+
       '<td><div style="display:flex;gap:8px;flex-wrap:wrap;">'+
         (u.role === "driver" ? '<button class="chip" data-act="toggle" data-email="'+ISV.esc(u.email)+'">'+(active?'Deactivate':'Activate')+'</button>' : '')+
@@ -193,7 +185,6 @@ function render(){
     };
   });
 }
-document.getElementById('dispatchTopic').textContent = (CONFIG.NOTIFY || {}).DISPATCH_TOPIC || "(not set)";
 render();
 ISV.onChange(render);
 }
