@@ -156,7 +156,7 @@ function rows(){
       '<td style="font:600 13px/1.4 Figtree,sans-serif;color:oklch(0.45 0.06 240);white-space:nowrap;">'+b.id+'</td>'+
       '<td><div style="font:600 14px/1.4 Figtree,sans-serif;color:oklch(0.28 0.02 250);">'+ISV.esc(b.name)+'</div>'+
       '<div style="font:400 13px/1.4 Figtree,sans-serif;color:oklch(0.55 0.015 250);">'+ISV.esc(b.phone)+'</div></td>'+
-      '<td><div style="max-width:280px;">'+ISV.esc(b.pickup)+' <span style="color:oklch(0.60 0.015 250);">→</span> '+ISV.esc(b.dropoff)+'</div>'+
+      '<td><div style="max-width:280px;">'+ISV.mapLink(b.pickup)+' <span style="color:oklch(0.60 0.015 250);">→</span> '+ISV.mapLink(b.dropoff)+'</div>'+
       '<div style="font:400 12.5px/1.4 Figtree,sans-serif;color:oklch(0.55 0.015 250);">'+ISV.tripLine(b)+'</div></td>'+
       '<td style="white-space:nowrap;"><div style="font:600 13.5px/1.4 Figtree,sans-serif;">'+ISV.fmtDate(b.date)+'</div>'+
       '<div style="font:400 13px/1.4 Figtree,sans-serif;color:oklch(0.55 0.015 250);">'+ISV.fmtTime(b.time)+'</div></td>'+

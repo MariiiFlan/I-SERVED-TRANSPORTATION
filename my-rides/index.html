@@ -47,7 +47,7 @@ if (me){
         '<div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;">'+
         '<div style="display:flex;align-items:center;gap:12px;"><span style="font:700 18px/1 \'Barlow Condensed\',sans-serif;letter-spacing:0.02em;">'+ISV.fmtDate(b.date)+' · '+ISV.fmtTime(b.time)+'</span>'+ISV.pill(b.status)+'</div>'+
         '<span style="font:600 15px/1 Figtree,sans-serif;color:oklch(0.50 0.115 238);">'+ISV.money(b.fare)+' est.</span></div>'+
-        '<div style="font:500 15px/1.5 Figtree,sans-serif;color:oklch(0.35 0.02 250);">'+ISV.esc(b.pickup)+' <span style="color:oklch(0.60 0.015 250);">→</span> '+ISV.esc(b.dropoff)+'</div>'+
+        '<div style="font:500 15px/1.5 Figtree,sans-serif;color:oklch(0.35 0.02 250);">'+ISV.mapLink(b.pickup)+' <span style="color:oklch(0.60 0.015 250);">→</span> '+ISV.mapLink(b.dropoff)+'</div>'+
         '<div style="font:400 13px/1.5 Figtree,sans-serif;color:oklch(0.55 0.015 250);">'+ISV.tripLine(b)+' · Request '+b.id+'</div>'+
         '</div>';
     }).join('') :

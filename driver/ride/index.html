@@ -77,13 +77,13 @@ function render(){
       '<div class="card" style="gap:0;padding:0;overflow:hidden;">'+
         '<div style="padding:16px 24px;background:oklch(0.985 0.008 237);border-bottom:1px solid oklch(0.93 0.01 250);font:700 14px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.45 0.02 250);">Trip</div>'+
         '<div style="padding:8px 24px 16px;">'+
-          [["Pickup", b.pickup + " — arrive 15 min early"], ["Drop-off", b.dropoff], ["Vehicle type", ISV.vehicleName(b.vehicle)],
+          [["Pickup", ISV.mapLink(b.pickup) + ' <span style="font:400 13px;color:oklch(0.55 0.015 250);">— arrive 15 min early</span>', true], ["Drop-off", ISV.mapLink(b.dropoff), true], ["Vehicle type", ISV.vehicleName(b.vehicle)],
            ["Trip type", b.tripType==="round"?"Round trip":"One way"], ["Distance", b.miles+" mi total"],
            ["Wait at appointment", (b.addOns&&b.addOns.wait) ? "Yes — driver waits" : "No"],
            ["Notes from dispatch", b.notes || "None"]]
           .map(function(r){ return '<div style="display:grid;grid-template-columns:170px 1fr;gap:16px;padding:12px 0;border-bottom:1px solid oklch(0.96 0.006 250);">'+
             '<span style="font:500 14px/1.5 Figtree,sans-serif;color:oklch(0.56 0.015 250);">'+r[0]+'</span>'+
-            '<span style="font:600 15px/1.5 Figtree,sans-serif;color:oklch(0.30 0.02 250);">'+ISV.esc(r[1])+'</span></div>'; }).join('')+
+            '<span style="font:600 15px/1.5 Figtree,sans-serif;color:oklch(0.30 0.02 250);">'+(r[2] ? r[1] : ISV.esc(r[1]))+'</span></div>'; }).join('')+
         '</div></div>'+
     '</div>'+
 

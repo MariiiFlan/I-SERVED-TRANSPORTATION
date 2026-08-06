@@ -123,11 +123,11 @@ function render(){
       '<div class="card" style="gap:0;padding:0;overflow:hidden;">'+
         '<div style="padding:16px 24px;background:oklch(0.985 0.008 237);border-bottom:1px solid oklch(0.93 0.01 250);font:700 14px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.45 0.02 250);">Trip</div>'+
         '<div style="padding:8px 24px 16px;">'+
-          [["Pickup", b.pickup], ["Destination", b.dropoff], ["Date", ISV.fmtDate(b.date)+", "+(b.date||"").slice(0,4)], ["Appointment time", ISV.fmtTime(b.time)],
+          [["Pickup", ISV.mapLink(b.pickup), true], ["Destination", ISV.mapLink(b.dropoff), true], ["Date", ISV.fmtDate(b.date)+", "+(b.date||"").slice(0,4)], ["Appointment time", ISV.fmtTime(b.time)],
            ["Trip type", (b.tripType==="round"?"Round trip":"One way")+" · "+b.miles+" mi total"], ["Vehicle", ISV.vehicleName(b.vehicle)]]
           .map(function(r){ return '<div style="display:grid;grid-template-columns:170px 1fr;gap:16px;padding:12px 0;border-bottom:1px solid oklch(0.96 0.006 250);">'+
             '<span style="font:500 14px/1.5 Figtree,sans-serif;color:oklch(0.56 0.015 250);">'+r[0]+'</span>'+
-            '<span style="font:600 15px/1.5 Figtree,sans-serif;color:oklch(0.30 0.02 250);">'+ISV.esc(r[1])+'</span></div>'; }).join('')+
+            '<span style="font:600 15px/1.5 Figtree,sans-serif;color:oklch(0.30 0.02 250);">'+(r[2] ? r[1] : ISV.esc(r[1]))+'</span></div>'; }).join('')+
         '</div></div>'+
 
       '<div class="card" style="gap:0;padding:0;overflow:hidden;">'+

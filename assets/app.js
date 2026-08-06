@@ -567,6 +567,11 @@
     return h + ":" + m + " " + ap;
   }
   function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+  function mapsUrl(addr) { return "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(addr); }
+  function mapLink(addr, style) {
+    if (!addr) return "";
+    return '<a href="' + mapsUrl(addr) + '" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="' + (style || "") + '">' + esc(addr) + '</a>';
+  }
   function tripLine(b) { return vehicleShort(b.vehicle) + " · " + (b.tripType === "round" ? "round trip" : "one way") + " · " + (b.miles || 0) + " mi"; }
 
   window.ISV = {
@@ -576,6 +581,6 @@
     dbError: function () { return DBERROR; },
     money: money, fare: fare, vehicleName: vehicleName, vehicleShort: vehicleShort,
     logo: logo, header: header, footer: footer, sidebar: sidebar, pill: pill,
-    fmtDate: fmtDate, fmtTime: fmtTime, esc: esc, tripLine: tripLine
+    fmtDate: fmtDate, fmtTime: fmtTime, esc: esc, tripLine: tripLine, mapsUrl: mapsUrl, mapLink: mapLink
   };
 })();
