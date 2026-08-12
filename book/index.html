@@ -74,7 +74,6 @@
       <div class="card">
         <h2 style="margin:0;font:700 15px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.45 0.02 250);">3 · Type of service</h2>
         <div id="services" class="grid3" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;"></div>
-        <div id="addOns" style="display:flex;flex-direction:column;gap:10px;"></div>
         <div style="display:flex;flex-direction:column;gap:7px;">
           <label class="lbl">Passengers riding along</label>
           <select id="pax" class="inp">
@@ -190,13 +189,6 @@ var TT = [
   { id:"round",  label:"Round trip", note:"Same driver both ways" }
 ];
 var SVC = (CONFIG.SERVICE_TYPES || []);
-var AO = [
-  { id:"wait",       label:"Driver waits at the appointment",  price: CONFIG.ADDON_WAIT },
-  { id:"assist",     label:"Door-through-door assistance",     price: CONFIG.ADDON_ASSIST },
-  { id:"afterHours", label:"Pickup before 6am or after 8pm",   price: CONFIG.ADDON_AFTERHOURS }
-];
-
-
 function render(){
   document.getElementById('tripTypes').innerHTML = TT.map(function(t){
     return '<div class="selbox'+(S.tripType===t.id?' on':'')+'" data-tt="'+t.id+'">'+
@@ -209,15 +201,6 @@ function render(){
       '<span style="font:400 12px/1.4 Figtree,sans-serif;color:oklch(0.55 0.015 250);">'+(t.note||'')+'</span>'+
       '<div class="ring"></div></div>';
   }).join('');
-  document.getElementById('addOns').innerHTML = AO.map(function(a){
-    var on = S.addOns[a.id];
-    return '<div data-ao="'+a.id+'" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 16px;border:1px solid oklch(0.93 0.012 250);border-radius:10px;background:oklch(0.99 0.004 250);">'+
-      '<div style="display:flex;align-items:center;gap:12px;">'+
-      '<div style="position:relative;width:20px;height:20px;border-radius:5px;border:1.5px solid oklch(0.80 0.02 250);background:#fff;">'+
-      (on ? '<div style="position:absolute;inset:-1.5px;border-radius:5px;background:oklch(0.62 0.115 237);display:flex;align-items:center;justify-content:center;font:700 12px/1 Figtree,sans-serif;color:#fff;">✓</div>' : '')+
-      '</div><span style="font:500 15px/1.3 Figtree,sans-serif;color:oklch(0.32 0.02 250);">'+a.label+'</span></div>'+
-      '<span style="font:600 14px/1 Figtree,sans-serif;color:oklch(0.55 0.015 250);">+$'+a.price+'</span></div>';
-  }).join('');
   document.querySelectorAll('[data-tt]').forEach(function(el){ el.onclick=function(){ S.tripType=this.getAttribute('data-tt'); render(); }; });
   document.querySelectorAll('[data-svc]').forEach(function(el){ el.onclick=function(){
     S.service = this.getAttribute('data-svc');
@@ -225,7 +208,6 @@ function render(){
     if (t && t.vehicle) S.vehicle = t.vehicle;
     render();
   }; });
-  document.querySelectorAll('[data-ao]').forEach(function(el){ el.onclick=function(){ var k=this.getAttribute('data-ao'); S.addOns[k]=!S.addOns[k]; render(); }; });
   calc();
 }
 

@@ -99,6 +99,15 @@ var form = document.getElementById('addForm');
 document.getElementById('toggleForm').onclick = function(){ form.style.display = form.style.display === "none" ? "flex" : "none"; };
 document.getElementById('closeForm').onclick = function(e){ e.preventDefault(); form.style.display = "none"; };
 
+// falls back gracefully if assets/app.js is an older version
+function av(person, size){
+  if (ISV.avatar) return ISV.avatar(person, size);
+  var s = size || 34;
+  var name = (person && person.name) || "";
+  var ini = name.split(/\s+/).filter(Boolean).slice(0,2).map(function(w){ return w[0]; }).join("").toUpperCase() || "?";
+  return '<div style="width:'+s+'px;height:'+s+'px;border-radius:50%;flex:0 0 auto;background:oklch(0.90 0.04 237);color:oklch(0.40 0.09 240);display:flex;align-items:center;justify-content:center;font:700 '+Math.round(s*0.38)+'px/1 Figtree,sans-serif;">'+ISV.esc(ini)+'</div>';
+}
+
 function weekCount(email){
   function iso(d){ return d.toISOString().slice(0,10); }
   var d = new Date(); var day = (d.getDay()+6)%7;
@@ -129,13 +138,24 @@ document.getElementById('saveMember').onclick = function(){
 };
 
 function render(){
+  try { renderInner(); }
+  catch (err) {
+    document.getElementById('rows').innerHTML =
+      '<tr><td colspan="5" style="padding:26px;font:500 14px/1.6 Figtree,sans-serif;color:oklch(0.50 0.15 25);">' +
+      'This page hit an error while drawing (your account data is safe and untouched).<br>' +
+      'Usually this means some site files are newer than others - re-upload the whole site folder, not just one page.<br>' +
+      '<span style="color:oklch(0.55 0.015 250);font-size:12.5px;">Details: ' + ISV.esc(err && err.message ? err.message : String(err)) + '</span></td></tr>';
+    console.error(err);
+  }
+}
+function renderInner(){
   var staff = ISV.auth.accounts().filter(function(u){ return u.role === "driver" || u.role === "owner"; });
   document.getElementById('rows').innerHTML = staff.map(function(u){
     var p = ISV.auth.profile(u.email);
     var active = p.active !== false;
     var isMe = u.email === me.email;
     return '<tr>'+
-      '<td><div style="display:flex;align-items:center;gap:10px;">'+ISV.avatar(u, 34)+'<div>'+
+      '<td><div style="display:flex;align-items:center;gap:10px;">'+av(u, 34)+'<div>'+
       '<div style="font:600 14.5px/1.4 Figtree,sans-serif;">'+ISV.esc(u.name)+(isMe?' <span style="font:600 11px/1 Figtree,sans-serif;color:oklch(0.55 0.015 250);">(you)</span>':'')+'</div>'+
       '<div style="font:400 13px/1.4 Figtree,sans-serif;color:oklch(0.55 0.015 250);">'+ISV.esc(u.email)+(p.phone?' · '+ISV.esc(p.phone):'')+'</div>'+
       (u.pending ? '<div style="margin-top:4px;"><span style="font:600 11px/1 Figtree,sans-serif;color:oklch(0.55 0.13 60);background:oklch(0.97 0.03 85);padding:4px 9px;border-radius:999px;">Invited - no account yet</span></div>' : '')+'</div></div></td>'+
