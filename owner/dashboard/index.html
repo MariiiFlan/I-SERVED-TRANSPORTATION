@@ -210,7 +210,8 @@ function rows(){
             : (b.status === "Completed"
                 ? (b.clientPaidOn
                     ? '<span style="font:600 11px/1 Figtree,sans-serif;color:oklch(0.40 0.10 160);background:oklch(0.94 0.05 160);padding:5px 10px;border-radius:999px;white-space:nowrap;">Paid</span>'
-                    : '<button class="chip" data-charge="'+b.id+'" style="color:oklch(0.48 0.12 45);">Collect '+ISV.money(b.fare)+'</button>')
+                    : '<button class="chip" data-bill="'+b.id+'" title="'+(b.billedOn?'Bill sent '+ISV.fmtDate(b.billedOn)+' - send again':'Send the bill to this client')+'">'+(b.billedOn?'Resend bill':'Send bill')+'</button>'+
+                      '<button class="chip" data-charge="'+b.id+'" style="color:oklch(0.48 0.12 45);">Collect '+ISV.money(b.fare)+'</button>')
                 : '')))+
         (inTrash ? '' : '<button data-trash="'+b.id+'" title="Move to trash" style="cursor:pointer;border:0;background:none;font-size:16px;line-height:1;padding:6px;border-radius:8px;color:oklch(0.55 0.10 25);">🗑</button>')+
       '</div></td></tr>';
@@ -241,6 +242,21 @@ function rows(){
       var why = prompt("Decline this request. What should the log say? (no vehicle available, outside service area, etc.)");
       if (why === null) return;
       ISV.book.reject(this.getAttribute('data-reject'), why, me.name); refresh();
+    };
+  });
+  document.querySelectorAll('[data-bill]').forEach(function(el){
+    el.onclick = function(ev){
+      ev.stopPropagation();
+      var id = this.getAttribute('data-bill');
+      var bb = ISV.book.byId(id);
+      if (!bb) return;
+      var how = confirm("Send the bill for " + ISV.money(bb.fare) + " to " + bb.name + "?\n\nOK = email it now" + (bb.phone ? "\nCancel = text it instead (opens your messages)" : ""));
+      if (how){
+        ISV.book.billClient(id, me.name).then(function(){ refresh(); alert("Bill sent."); });
+      } else if (bb.phone){
+        ISV.book.update(id, { billedOn: new Date().toISOString().slice(0,10) }, "Bill texted by " + me.name);
+        location.href = ISV.smsHref(bb.phone, ISV.book.clientBillText(bb));
+      }
     };
   });
   document.querySelectorAll('[data-charge]').forEach(function(el){

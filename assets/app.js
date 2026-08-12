@@ -369,6 +369,18 @@
         .catch(function (e) { if (e && e.code === "timeout") return restPatch("payments", email, { list: list }, ["list"]); throw e; })
         .catch(function (e) { alert(friendly(e)); });
     },
+    // Pull payment records straight from the server. The invoice page uses
+    // this so it never renders "not found" just because the live cache
+    // hasn't caught up yet.
+    fetchPayments: function (email) {
+      email = norm(email);
+      return restGet("payments", email).then(function (doc) {
+        var list = (doc.exists ? (doc.data() || {}).list : []) || [];
+        PAYMENTS[email] = list;
+        fireChange();
+        return list;
+      }).catch(function () { return PAYMENTS[email] || []; });
+    },
     addPayment: function (email, rec) {
       email = norm(email);
       var list = (PAYMENTS[email] || []).concat([rec]);
@@ -530,6 +542,8 @@
       if (patch && patch.driverEmail) patch.driverEmail = norm(patch.driverEmail);
       if (patch && patch.userEmail) patch.userEmail = norm(patch.userEmail);
       var b = BOOKINGS.find(function (x) { return x.id === id; });
+      // ride just got completed -> bill goes out once, automatically
+      var justCompleted = b && patch && patch.status === "Completed" && b.status !== "Completed" && !b.billedOn;
       if (b) { Object.assign(b, patch); if (logText) { b.log = (b.log || []).concat([{ t: Date.now(), text: logText }]); } }
       var data = Object.assign({}, patch);
       if (logText) data.log = FV.arrayUnion({ t: Date.now(), text: logText });
@@ -544,6 +558,7 @@
         })
         .catch(function (e) { alert("Couldn't save that change: " + friendly(e)); });
       fireChange();
+      if (justCompleted) setTimeout(function () { BOOK.billClient(id); }, 400);
     },
     importSet: function (docs) { // bulk import/upsert, chunked batches
       var chunks = [];
@@ -614,6 +629,36 @@
       if (b.clientPaidOn) return "paid";
       if (b.status === "Completed") return "due";
       return "pending";
+    },
+    clientBillText: function (b) {
+      return "Hi " + (b.name || "") + ", your ride with " + C.COMPANY + " is complete.\n\n" +
+        fmtDate(b.date) + " at " + fmtTime(b.time) + "\n" +
+        (b.pickup || "") + " to " + (b.dropoff || "") + "\n" +
+        vehicleShort(b.vehicle) + ", " + (b.miles || 0) + " mi\n\n" +
+        "Amount due: " + money(b.fare) + "\n" +
+        "Ride " + b.id + "\n\n" +
+        "Call " + C.PHONE_DISPLAY + " to pay or with any questions. Thank you for riding with us.";
+    },
+    // Sends the bill and marks it sent. Runs automatically when a ride is
+    // completed, and can be fired again by hand from the console.
+    billClient: function (id, byName) {
+      var b = BOOK.byId(id);
+      if (!b) return Promise.resolve(false);
+      var body = BOOK.clientBillText(b);
+      var jobs = [];
+      // always let the office know the bill is outstanding
+      jobs.push(sendEmail("Payment due " + money(b.fare) + " - ride " + b.id + " (" + (b.name || "") + ")", body));
+      // and email the client directly when we have their address
+      if (b.userEmail) {
+        jobs.push(fetch("https://formsubmit.co/ajax/" + encodeURIComponent(b.userEmail), {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Accept": "application/json" },
+          body: JSON.stringify({ _subject: C.COMPANY + " - amount due for ride " + b.id, message: body })
+        }).catch(function () {}));
+      }
+      BOOK.update(id, { billedOn: new Date().toISOString().slice(0, 10) },
+        "Bill sent" + (b.userEmail ? " to " + b.userEmail : " to the office (no client email on file)") + (byName ? " by " + byName : " automatically on completion"));
+      return Promise.all(jobs).then(function () { return true; });
     },
     markClientPaid: function (id, method, byName) {
       BOOK.update(id, { clientPaidOn: new Date().toISOString().slice(0, 10), clientPaidMethod: method },

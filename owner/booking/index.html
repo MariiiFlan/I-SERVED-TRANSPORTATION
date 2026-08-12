@@ -237,7 +237,10 @@ function render(){
                 '</div><button class="btn2" id="unpayClient" style="padding:10px;font-size:13px;">Mark unpaid</button>';
             }
             if (state === "due"){
-              return '<div style="padding:11px 13px;border-radius:9px;background:oklch(0.97 0.03 85);font:600 13px/1.5 Figtree,sans-serif;color:oklch(0.48 0.10 72);">Payment due - the ride is completed.</div>'+
+              return '<div style="padding:11px 13px;border-radius:9px;background:oklch(0.97 0.03 85);font:600 13px/1.5 Figtree,sans-serif;color:oklch(0.48 0.10 72);">Payment due - the ride is completed.'+
+                (b.billedOn ? '<div style="font-weight:500;margin-top:3px;">Bill sent '+ISV.fmtDate(b.billedOn)+'.</div>' : '<div style="font-weight:500;margin-top:3px;">No bill sent yet.</div>')+'</div>'+
+                '<button class="btn2" id="billClient" style="padding:11px;font-size:13.5px;">'+(b.billedOn?'Resend bill':'Send bill to client')+'</button>'+
+                (b.phone ? '<a class="btn2" style="padding:11px;font-size:13.5px;text-align:center;display:block;" href="'+ISV.smsHref(b.phone, ISV.book.clientBillText(b))+'">Text the bill</a>' : '')+
                 '<button class="btn" id="payClient" style="padding:12px;font-size:14px;">Record payment received</button>';
             }
             return '<span style="font:400 13px/1.5 Figtree,sans-serif;color:oklch(0.55 0.015 250);">Charged when the ride is completed. Nothing is collected up front.</span>';
@@ -285,6 +288,11 @@ function render(){
   });
   var un = document.getElementById('unassign');
   if (un) un.onclick = function(){ ISV.book.update(id, { driverEmail: null, status: "New" }, "Driver unassigned by " + me.name); render(); };
+  var bc = document.getElementById('billClient');
+  if (bc) bc.onclick = function(){
+    bc.disabled = true; bc.textContent = "Sending...";
+    ISV.book.billClient(id, me.name).then(function(){ render(); });
+  };
   var pc = document.getElementById('payClient');
   if (pc) pc.onclick = function(){
     var how = prompt("Record payment of " + ISV.money(b.fare) + " from " + b.name + ".\nHow did they pay? (cash, card, Zelle, invoiced, broker)", "cash");

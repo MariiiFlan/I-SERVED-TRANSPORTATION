@@ -118,10 +118,20 @@ drivers until it is approved.
   * Rides HE books himself (signed in as owner) skip approval - they are
     already his
 
-CLIENT PAYMENTS (charged after the ride)
------------------------------------------
-Nothing is charged when someone books. Once a ride is marked Completed
-it becomes PAYMENT DUE.
+CLIENT PAYMENTS (billed the moment the ride is completed)
+----------------------------------------------------------
+Nothing is charged when someone books. The SECOND a driver marks a ride
+Completed, the bill goes out automatically:
+  * The client is emailed the amount due, the trip details, and the
+    number to call (only if they booked with an account - otherwise use
+    the Send bill / Text the bill buttons)
+  * A copy lands in the office inbox so you know it went out
+  * The ride flips to PAYMENT DUE
+
+On the dashboard row and the ride page you also get:
+  * "Send bill" / "Resend bill" - email it again
+  * "Text the bill" - opens your messages with the whole thing written
+  * "Collect $X" - log how they actually paid
   * Dashboard -> "Payment due (n)" filter shows every uncollected ride
   * "Collect $X" on the row (or "Record payment received" on the ride
     page) logs how they paid: cash, card, Zelle, invoiced, broker
@@ -155,10 +165,19 @@ Three stages, so nothing is ever marked paid before the money moves:
     and just needs it logged (it asks for confirmation first).
   * "Text pay summary" texts the driver what they are owed.
 
-WHY NOT INVOICE SIMPLE DIRECTLY: their app has no way to receive data
-from another website, so it always opened blank. The built-in invoice
-above does the whole job. The "Copy details" button is still there if he
-prefers to paste into Invoice Simple.
+USING INVOICE SIMPLE
+--------------------
+Their invoice generator has no way to accept data from another website -
+no link or setting can prefill it (I checked their page directly). So
+there is a helper instead:
+  * "Use Invoice Simple" on any invoice, or the orange "Invoice Simple"
+    button on any Payment history row
+  * It opens their generator in a new tab AND shows a panel listing every
+    field with its own Copy button, in the order their form asks for them
+  * The total is already on the clipboard, so the first paste is free
+  * Tap Copy, click the box over there, paste. About 8 taps total.
+The invoice built into this site (Print / Save as PDF / Email / Text)
+does the same job with no copying at all - worth showing him first.
 
 PRIVACY: payment history lives in a separate database collection that
 ONLY the owner can read. Drivers cannot see it, not even their own

@@ -333,6 +333,7 @@ function paintHist(){
       '</div>'+
       '<div style="display:flex;gap:8px;flex-wrap:wrap;">'+
         '<a class="chip" style="text-decoration:none;" href="../invoice/?driver='+encodeURIComponent(email)+'&payment='+encodeURIComponent(p.id)+'">Open / resend invoice</a>'+
+        '<a class="chip" style="text-decoration:none;background:oklch(0.55 0.19 35);border-color:oklch(0.55 0.19 35);color:#fff;" href="../invoice/?driver='+encodeURIComponent(email)+'&payment='+encodeURIComponent(p.id)+'&is=1">Invoice Simple</a>'+
         (paid
           ? '<button class="chip" data-unconfirm="'+p.id+'">Undo paid</button>'
           : '<button class="chip" data-confirm="'+p.id+'" style="background:oklch(0.32 0.03 248);border-color:oklch(0.32 0.03 248);color:#fff;">Mark as paid</button>')+

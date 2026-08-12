@@ -26,7 +26,7 @@
     <button class="btn" id="printBtn" style="padding:12px 20px;font-size:14px;">Print / Save as PDF</button>
     <button class="btn2" id="emailBtn" style="padding:12px 18px;font-size:14px;">Email to driver</button>
     <button class="btn2" id="textBtn" style="padding:12px 18px;font-size:14px;">Text the driver</button>
-    <button class="btn2" id="isBtn" style="padding:12px 18px;font-size:14px;">Send to Invoice Simple</button>
+    <button class="btn" id="isBtn" style="padding:12px 18px;font-size:14px;background:oklch(0.55 0.19 35);">Use Invoice Simple</button>
     <button class="btn2" id="copyBtn" style="padding:12px 18px;font-size:14px;">Copy all details</button>
     <span id="barMsg" style="font:500 13.5px/1.4 Figtree,sans-serif;color:oklch(0.42 0.10 160);"></span>
   </div>
@@ -62,14 +62,24 @@ var payId = qs.get('payment');
 
 var driver = ISV.auth.drivers().find(function(d){ return d.email === email; }) || { name: email, email: email };
 var rec = ISV.auth.payments(email).find(function(p){ return p.id === payId; });
+var share = Math.round((CONFIG.DRIVER_SHARE || 0.6) * 100);
 
 if (!rec){
-  document.getElementById('sheet').innerHTML = '<p style="font:400 16px/1.6 Figtree,sans-serif;">Invoice not found. <a href="../pay/">Back to driver pay</a></p>';
-  return;
-}
+  // the live cache may not have caught up yet - ask the server directly
+  document.getElementById('sheet').innerHTML = '<p style="font:400 16px/1.6 Figtree,sans-serif;color:oklch(0.55 0.015 250);">Loading invoice...</p>';
+  ISV.auth.fetchPayments(email).then(function(list){
+    var found = (list || []).find(function(p){ return p.id === payId; });
+    if (found){ rec = found; build(); }
+    else {
+      document.getElementById('sheet').innerHTML =
+        '<p style="font:400 16px/1.6 Figtree,sans-serif;">That invoice could not be found for ' + ISV.esc(email) + '.<br>' +
+        '<a href="../pay/">Back to driver pay</a></p>';
+    }
+  });
+} else build();
 
+function build(){
 var rides = (rec.rideIds || []).map(function(id){ return ISV.book.byId(id); }).filter(Boolean);
-var share = Math.round((CONFIG.DRIVER_SHARE || 0.6) * 100);
 
 function row(label, value){
   return '<div style="display:flex;flex-direction:column;gap:2px;">'+
@@ -141,8 +151,12 @@ document.getElementById('sheet').innerHTML =
     (rec.by ? '<br>Prepared by '+ISV.esc(rec.by)+'.' : '')+
   '</div>';
 
+} // end build()
+
 /* ---- actions ---- */
+function ridesNow(){ return (rec.rideIds || []).map(function(id){ return ISV.book.byId(id); }).filter(Boolean); }
 function plainText(){
+  var rides = ridesNow();
   return [
     CONFIG.COMPANY + " - driver pay invoice " + rec.id,
     "For: " + driver.name,
@@ -164,6 +178,7 @@ document.getElementById('emailBtn').onclick = function(){
 
 document.getElementById('textBtn').onclick = function(){
   if (!driver.phone){ msg("No mobile number saved for this driver.", true); return; }
+  var rides = ridesNow();
   location.href = ISV.smsHref(driver.phone,
     (driver.name ? driver.name.split(" ")[0] + ", " : "") + "your pay for " + rides.length + " ride" + (rides.length===1?"":"s") +
     " is " + ISV.money(rec.amount) + " (invoice " + rec.id + ").");
@@ -175,6 +190,7 @@ function copyText(t){
 }
 
 document.getElementById('isBtn').onclick = function(){
+  var rides = ridesNow();
   var desc = share + "% driver share - " + rides.length + " completed ride" + (rides.length===1?"":"s") +
     (rides.length ? " (" + ISV.fmtDate(rides[0].date) + " to " + ISV.fmtDate(rides[rides.length-1].date) + ")" : "");
   var fields = [
