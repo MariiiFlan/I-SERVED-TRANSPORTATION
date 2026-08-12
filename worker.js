@@ -11,7 +11,7 @@
         STRIPE_SECRET   = the sk_live_... key from Stripe (mark as Secret)
         OWNER_EMAILS    = dflanagan@iservedtransport.com
                           (comma separated, lowercase, whoever may charge cards)
-        ALLOWED_ORIGIN  = https://iservedtransportation.com
+        ALLOWED_ORIGIN  = https://iservedtransportation.com,http://127.0.0.1:3000,http://localhost:3000
    5. Copy the worker URL (looks like https://iserved-pay.SOMETHING.workers.dev)
    6. Paste that URL into assets/config.js -> PAYMENT_API
    ============================================================ */
@@ -22,9 +22,12 @@ export default {
   async fetch(request, env) {
     const origin = request.headers.get("Origin") || "";
     const allowed = (env.ALLOWED_ORIGIN || "").split(",").map(s => s.trim()).filter(Boolean);
-    const okOrigin = allowed.length === 0 || allowed.includes(origin) || origin.endsWith(".github.io");
+    // allow the live domain, any github.io preview, and local testing
+    const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+    const okOrigin = allowed.length === 0 || allowed.includes(origin) || origin.endsWith(".github.io") || isLocal;
     const cors = {
       "Access-Control-Allow-Origin": okOrigin && origin ? origin : (allowed[0] || "*"),
+      "Vary": "Origin",
       "Access-Control-Allow-Methods": "POST, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type, Authorization",
       "Access-Control-Max-Age": "86400"

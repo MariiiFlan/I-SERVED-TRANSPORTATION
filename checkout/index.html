@@ -157,7 +157,14 @@ function startCard(){
     document.getElementById('cardLoading').style.display = "none";
     document.getElementById('cardWrap').style.display = "flex";
   })
-  .catch(function(e){ cardOff("Card payment is temporarily unavailable."); });
+  .catch(function(e){
+    var why = (e && e.message) || "";
+    console.error("Card setup failed:", e);
+    if (/Failed to fetch|NetworkError|Load failed/i.test(why))
+      cardOff("Card form couldn't reach the payment service (this is normal when testing on localhost - it works on the live site).");
+    else
+      cardOff("Card payment is temporarily unavailable. " + why);
+  });
 }
 
 function bookWithCard(){
