@@ -295,9 +295,8 @@ function render(){
   };
   var pc = document.getElementById('payClient');
   if (pc) pc.onclick = function(){
-    var how = prompt("Record payment of " + ISV.money(b.fare) + " from " + b.name + ".\nHow did they pay? (cash, card, Zelle, invoiced, broker)", "cash");
-    if (how === null) return;
-    ISV.book.markClientPaid(id, how.trim() || "cash", me.name); render();
+    if (!confirm("Mark " + ISV.money(b.fare) + " from " + b.name + " as PAID BY CARD?")) return;
+    ISV.book.markClientPaid(id, "card", me.name); render();
   };
   var uc = document.getElementById('unpayClient');
   if (uc) uc.onclick = function(){ if (confirm("Mark this ride as unpaid again?")) { ISV.book.markClientUnpaid(id, me.name); render(); } };

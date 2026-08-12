@@ -265,9 +265,8 @@ function rows(){
       var id = this.getAttribute('data-charge');
       var bb = ISV.book.byId(id);
       if (!bb) return;
-      var how = prompt("Record payment of " + ISV.money(bb.fare) + " from " + bb.name + ".\nHow did they pay? (cash, card, Zelle, invoiced, broker)", "cash");
-      if (how === null) return;
-      ISV.book.markClientPaid(id, how.trim() || "cash", me.name);
+      if (!confirm("Mark " + ISV.money(bb.fare) + " from " + bb.name + " as PAID BY CARD?")) return;
+      ISV.book.markClientPaid(id, "card", me.name);
       refresh();
     };
   });

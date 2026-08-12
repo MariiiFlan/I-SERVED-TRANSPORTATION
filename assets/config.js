@@ -56,6 +56,15 @@ window.CONFIG = {
     { id: "stretcher",  label: "Stretcher / gurney transport",    vehicle: "stretcher", note: "Lying down, two attendants" }
   ],
 
+  // ---------------- STRIPE (card payments) ----------------
+  // The publishable key is meant to be public - it can only start a
+  // payment, never move money on its own. The SECRET key must never
+  // appear in this file or anywhere in the site; it lives in the
+  // Cloudflare Worker. See README.txt.
+  STRIPE_PUBLISHABLE_KEY: "pk_live_51U3fgeAeWrRbLte2C7eI1LwgObSvLrNIXJ1vNvByJ6yd7CO41906Iyz7crtGzLL4apl4d7LJVCwBCtNpcSyUg2eZ00nxl9RnAd",
+  // Filled in once the Worker is deployed, e.g. "https://iserved-pay.<name>.workers.dev"
+  PAYMENT_API: "",
+
   // ---------------- DRIVER PAY ----------------
   // Drivers earn this share of each completed ride's fare.
   DRIVER_SHARE: 0.60,

@@ -63,8 +63,8 @@
       <div style="display:flex;flex-direction:column;gap:7px;">
         <label class="lbl">Method</label>
         <select id="payMethod" class="inp">
-          <option>Zelle</option><option>Cash App</option><option>Venmo</option>
-          <option>Check</option><option>Cash</option><option>Direct deposit</option><option>Other</option>
+          <option>Direct deposit</option><option>Zelle</option><option>Cash App</option>
+          <option>Venmo</option><option>Check</option><option>Other</option>
         </select>
       </div>
     </div>
@@ -75,10 +75,9 @@
 
     <div style="display:flex;flex-direction:column;gap:10px;">
       <button class="btn" id="payInvoice" style="padding:15px;">Create invoice</button>
-      <button class="btn2" id="payInvoiceIS" style="padding:14px;">Create invoice, then open Invoice Simple</button>
       <button class="btn2" id="payRecordOnly" style="padding:14px;">Record as already paid</button>
       <span id="payMsg" class="err"></span>
-      <span style="font:400 12.5px/1.6 Figtree,sans-serif;color:oklch(0.58 0.015 250);">"Create invoice" builds a real invoice you can print, save as PDF, email, or text - it does NOT mark anything paid. It stays in Payment history where you can resend it any time, and mark it paid once the money actually goes out.</span>
+      <span style="font:400 12.5px/1.6 Figtree,sans-serif;color:oklch(0.58 0.015 250);">"Create invoice" builds an I Served invoice you can print, save as PDF, email, or text to the driver. It does NOT mark anything paid - it stays in Payment history where you can resend it any time, and mark it paid once the money actually goes out.</span>
     </div>
   </div>
 </div>
@@ -279,16 +278,6 @@ document.getElementById('payInvoice').onclick = function(){
   location.href = "../invoice/?driver=" + encodeURIComponent(CURRENT.email) + "&payment=" + encodeURIComponent(rec.id);
 };
 
-// Same, but jumps straight to the Invoice Simple helper.
-document.getElementById('payInvoiceIS').onclick = function(){
-  var rec = buildRecord("sent");
-  if (!rec) return;
-  ISV.auth.addPayment(CURRENT.email, rec);
-  ISV.book.markInvoiced(rec.rideIds, rec);
-  document.getElementById('payModal').style.display = "none";
-  location.href = "../invoice/?driver=" + encodeURIComponent(CURRENT.email) + "&payment=" + encodeURIComponent(rec.id) + "&is=1";
-};
-
 // For when he already handed over cash and just needs it logged.
 document.getElementById('payRecordOnly').onclick = function(){
   var rec = buildRecord("paid");
@@ -333,7 +322,6 @@ function paintHist(){
       '</div>'+
       '<div style="display:flex;gap:8px;flex-wrap:wrap;">'+
         '<a class="chip" style="text-decoration:none;" href="../invoice/?driver='+encodeURIComponent(email)+'&payment='+encodeURIComponent(p.id)+'">Open / resend invoice</a>'+
-        '<a class="chip" style="text-decoration:none;background:oklch(0.55 0.19 35);border-color:oklch(0.55 0.19 35);color:#fff;" href="../invoice/?driver='+encodeURIComponent(email)+'&payment='+encodeURIComponent(p.id)+'&is=1">Invoice Simple</a>'+
         (paid
           ? '<button class="chip" data-unconfirm="'+p.id+'">Undo paid</button>'
           : '<button class="chip" data-confirm="'+p.id+'" style="background:oklch(0.32 0.03 248);border-color:oklch(0.32 0.03 248);color:#fff;">Mark as paid</button>')+

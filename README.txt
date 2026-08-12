@@ -165,43 +165,18 @@ Three stages, so nothing is ever marked paid before the money moves:
     and just needs it logged (it asks for confirmation first).
   * "Text pay summary" texts the driver what they are owed.
 
-USING INVOICE SIMPLE
---------------------
-Their invoice generator has no way to accept data from another website -
-no link or setting can prefill it (I checked their page directly). So
-there is a helper instead:
-  * "Use Invoice Simple" on any invoice, or the orange "Invoice Simple"
-    button on any Payment history row
-  * It opens their generator in a new tab AND shows a panel listing every
-    field with its own Copy button, in the order their form asks for them
-  * The total is already on the clipboard, so the first paste is free
-  * Tap Copy, click the box over there, paste. About 8 taps total.
-The invoice built into this site (Print / Save as PDF / Email / Text)
-does the same job with no copying at all - worth showing him first.
-
-PRIVACY: payment history lives in a separate database collection that
-ONLY the owner can read. Drivers cannot see it, not even their own
-payment records. On their profile page a driver sees their completed
-ride count and total earned - nothing about what has been paid out.
-
-PROFILES (everyone: /profile/)
--------------------------------
-Every account can set their own:
-  * Profile photo (auto-cropped square and resized, any file size is fine)
-  * Full name
-  * Mobile number
-Changes appear everywhere that person's name shows up: dispatch lists,
-schedules, the assign panel, driver pay. A driver updating their phone
-number here also updates the number dispatch texts.
-Email cannot be changed (it is the sign-in), and nobody can change their
-own role - only the owner grants driver/owner access.
-
-WHAT CLIENTS SEE vs WHAT YOU SEE (pricing)
--------------------------------------------
-Clients get a clean summary: vehicle, trip type, total miles, and their
-fare. They never see the base fare or the per-mile rate broken out.
-On the owner side, open any booking and the fare panel shows the full
-math (base x legs, miles x rate) so you can check it.
+DRIVER INVOICES (built in - no other app needed)
+-------------------------------------------------
+"Create invoice" on the Driver pay page builds an I Served invoice:
+company header and logo, the driver's details, every ride listed with
+its fare and 60% cut, and the total. From there:
+  * Print / Save as PDF
+  * Email to driver (opens your mail app with it written out)
+  * Text the driver
+  * Copy details
+It stays in Payment history forever - "Open / resend invoice" pulls the
+same one back up any time, and "Mark as paid" logs it once the money
+has gone out.
 
 ASSIGNING RIDES (single or in bulk)
 ------------------------------------
