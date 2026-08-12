@@ -562,12 +562,13 @@
         var done = BOOK.byId(id);
         if (done && done.cardOnFile && done.stripePaymentMethodId && C.PAYMENT_API) {
           BOOK.chargeCard(id).then(function (res) {
-            if (!res.ok && res.reason !== "Already paid") BOOK.billClient(id); // fall back to a bill
+            // "no-card" and real declines both fall back to emailing the bill
+            if (!res.ok && res.reason !== "Already paid") BOOK.billClient(id);
           });
         } else {
           BOOK.billClient(id);
         }
-      }, 400);
+      }, 2500);
     },
     importSet: function (docs) { // bulk import/upsert, chunked batches
       var chunks = [];
@@ -639,8 +640,10 @@
       if (b.status === "Completed") return "due";
       return "pending";
     },
-    // Charges the card saved at booking. Only an owner can call this -
-    // the worker verifies the sign-in token before Stripe is touched.
+    // Charges the card saved at booking. The worker checks who is calling,
+    // reads the ride from the database itself, and takes the amount from
+    // there - so the owner OR the assigned driver can trigger it, and the
+    // amount can't be tampered with from the browser.
     chargeCard: function (id) {
       var b = BOOK.byId(id);
       if (!b) return Promise.resolve({ ok: false, reason: "Ride not found" });
@@ -649,30 +652,26 @@
       if (!C.PAYMENT_API) return Promise.resolve({ ok: false, reason: "Card payments are not switched on yet." });
       var u = fbAuth.currentUser;
       if (!u) return Promise.resolve({ ok: false, reason: "Sign in again to charge cards." });
-      return u.getIdToken().then(function (token) {
+      return u.getIdToken(true).then(function (token) {
         return fetch(C.PAYMENT_API.replace(/\/$/, "") + "/charge", {
           method: "POST",
           headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token },
-          body: JSON.stringify({
-            amount: b.fare,
-            customerId: b.stripeCustomerId,
-            paymentMethodId: b.stripePaymentMethodId,
-            bookingId: b.id,
-            passenger: b.name || ""
-          })
+          body: JSON.stringify({ bookingId: b.id })
         });
       }).then(function (r) { return r.json(); }).then(function (d) {
+        if (d.alreadyPaid) return { ok: true };
         if (d.ok) {
           BOOK.update(id, {
             clientPaidOn: new Date().toISOString().slice(0, 10),
             clientPaidMethod: "card" + (d.last4 ? " ****" + d.last4 : ""),
-            stripePaymentIntentId: d.paymentIntentId
-          }, "Card charged " + money(b.fare) + " automatically on completion");
+            stripePaymentIntentId: d.paymentIntentId,
+            chargeError: null
+          }, "Card charged " + money(d.amount || b.fare) + " automatically on completion");
           return { ok: true };
         }
-        BOOK.update(id, { chargeError: d.error || d.status || "declined" },
-          "Card charge failed: " + (d.error || d.status || "declined"));
-        return { ok: false, reason: d.error || d.status || "The card was declined." };
+        var why = d.error || d.status || "declined";
+        BOOK.update(id, { chargeError: why }, "Card charge failed: " + why);
+        return { ok: false, reason: why };
       }).catch(function (e) {
         return { ok: false, reason: (e && e.message) || "Could not reach the payment service." };
       });

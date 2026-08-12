@@ -43,10 +43,7 @@ export default {
 
     try {
       if (url.pathname.endsWith("/setup-intent")) return await setupIntent(body, env, cors);
-      if (url.pathname.endsWith("/charge")) {
-        await requireOwner(request, env);
-        return await charge(body, env, cors);
-      }
+      if (url.pathname.endsWith("/charge")) return await charge(body, env, cors, request);
       if (url.pathname.endsWith("/ping"))         return json({ ok: true }, 200, cors);
       return json({ error: "Unknown endpoint" }, 404, cors);
     } catch (err) {
@@ -77,19 +74,55 @@ async function stripe(env, path, params) {
   return data;
 }
 
-// Only a signed-in owner may charge a saved card. Verifies the Firebase
-// token with Google and checks the email against OWNER_EMAILS.
-async function requireOwner(request, env) {
+// Verifies a Firebase sign-in token and returns the person's email.
+// (Firebase tokens are NOT Google OAuth tokens - they must be checked
+// against Firebase's own endpoint.)
+async function whoIsCalling(request, env) {
   const auth = request.headers.get("Authorization") || "";
   const token = auth.replace(/^Bearer\s+/i, "").trim();
-  if (!token) throw new Error("Missing sign-in token");
-  const res = await fetch("https://oauth2.googleapis.com/tokeninfo?id_token=" + encodeURIComponent(token));
-  if (!res.ok) throw new Error("Sign-in token rejected");
-  const info = await res.json();
-  const email = String(info.email || "").toLowerCase();
-  const owners = (env.OWNER_EMAILS || "").toLowerCase().split(",").map(s => s.trim()).filter(Boolean);
-  if (!email || (owners.length && !owners.includes(email))) throw new Error("Not permitted to charge cards");
-  return email;
+  if (!token) throw new Error("Not signed in");
+  const key = env.FIREBASE_API_KEY || "AIzaSyDNQDWoXBZOP78-Fjld34wb2uKnC8RyNew";
+  const res = await fetch("https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=" + key, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ idToken: token })
+  });
+  const data = await res.json();
+  const user = data.users && data.users[0];
+  if (!res.ok || !user) throw new Error("Sign-in expired - sign out and back in");
+  return { email: String(user.email || "").toLowerCase(), token: token };
+}
+
+// Reads the ride straight from Firestore using the caller's own token, so
+// the amount and card can never be faked by whoever is calling.
+async function loadBooking(bookingId, token, env) {
+  const project = env.FIREBASE_PROJECT_ID || "iserved";
+  const url = "https://firestore.googleapis.com/v1/projects/" + project +
+              "/databases/(default)/documents/bookings/" + encodeURIComponent(bookingId);
+  const res = await fetch(url, { headers: { "Authorization": "Bearer " + token } });
+  if (!res.ok) throw new Error("Could not read that ride (permission denied)");
+  const doc = await res.json();
+  const f = doc.fields || {};
+  const val = (x) => {
+    if (!x) return null;
+    if ("stringValue" in x) return x.stringValue;
+    if ("doubleValue" in x) return Number(x.doubleValue);
+    if ("integerValue" in x) return Number(x.integerValue);
+    if ("booleanValue" in x) return x.booleanValue;
+    if ("nullValue" in x) return null;
+    return null;
+  };
+  return {
+    id: bookingId,
+    fare: Number(val(f.fare) || 0),
+    status: val(f.status),
+    name: val(f.name) || "",
+    driverEmail: (val(f.driverEmail) || "").toLowerCase(),
+    userEmail: (val(f.userEmail) || "").toLowerCase(),
+    customerId: val(f.stripeCustomerId),
+    paymentMethodId: val(f.stripePaymentMethodId),
+    clientPaidOn: val(f.clientPaidOn)
+  };
 }
 
 /* ---------- 1. customer saves a card at booking (no charge) ---------- */
@@ -115,30 +148,49 @@ async function setupIntent(body, env, cors) {
 }
 
 /* ---------- 2. charge the saved card when the ride is completed ---------- */
-async function charge(body, env, cors) {
-  const amountCents = Math.round(Number(body.amount) * 100);
-  if (!amountCents || amountCents < 50) throw new Error("Invalid amount");
-  if (!body.customerId || !body.paymentMethodId) throw new Error("No saved card for this ride");
+async function charge(body, env, cors, request) {
+  const caller = await whoIsCalling(request, env);
+  const bookingId = String(body.bookingId || "").trim();
+  if (!bookingId) throw new Error("No ride specified");
+
+  const ride = await loadBooking(bookingId, caller.token, env);
+
+  // The owner, or the driver actually assigned to this ride, may charge it.
+  const owners = (env.OWNER_EMAILS || "").toLowerCase().split(",").map(s => s.trim()).filter(Boolean);
+  const isOwner = owners.includes(caller.email);
+  const isTheDriver = ride.driverEmail && ride.driverEmail === caller.email;
+  if (!isOwner && !isTheDriver) throw new Error("Not permitted to charge this ride");
+
+  if (ride.clientPaidOn) return json({ ok: true, alreadyPaid: true }, 200, cors);
+  if (ride.status !== "Completed") throw new Error("Ride is not completed yet");
+  if (!ride.customerId || !ride.paymentMethodId) throw new Error("no-card");
+
+  // amount comes from the database, never from the browser
+  const amountCents = Math.round(ride.fare * 100);
+  if (!amountCents || amountCents < 50) throw new Error("Invalid fare on this ride");
 
   const intent = await stripe(env, "/payment_intents", {
     amount: String(amountCents),
     currency: "usd",
-    customer: body.customerId,
-    payment_method: body.paymentMethodId,
+    customer: ride.customerId,
+    payment_method: ride.paymentMethodId,
     off_session: "true",
     confirm: "true",
-    description: "I Served Transportation - ride " + (body.bookingId || ""),
-    "metadata[booking_id]": body.bookingId || "",
-    "metadata[passenger]": body.passenger || ""
+    description: "I Served Transportation - ride " + ride.id,
+    "metadata[booking_id]": ride.id,
+    "metadata[passenger]": ride.name,
+    "metadata[charged_by]": caller.email
   });
+
+  const card = intent.charges && intent.charges.data && intent.charges.data[0] &&
+               intent.charges.data[0].payment_method_details &&
+               intent.charges.data[0].payment_method_details.card;
 
   return json({
     ok: intent.status === "succeeded",
     status: intent.status,
+    amount: ride.fare,
     paymentIntentId: intent.id,
-    last4: (intent.charges && intent.charges.data && intent.charges.data[0] &&
-            intent.charges.data[0].payment_method_details &&
-            intent.charges.data[0].payment_method_details.card &&
-            intent.charges.data[0].payment_method_details.card.last4) || ""
+    last4: (card && card.last4) || ""
   }, 200, cors);
 }
