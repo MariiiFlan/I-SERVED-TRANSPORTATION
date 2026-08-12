@@ -118,6 +118,40 @@ drivers until it is approved.
   * Rides HE books himself (signed in as owner) skip approval - they are
     already his
 
+CARD PAYMENTS - TURNING THEM ON (about 10 minutes, one time)
+=============================================================
+The site is fully built for cards. It goes live the moment the worker
+is deployed. Follow worker.js - the steps are at the top of that file:
+
+  1. Cloudflare -> Workers & Pages -> Create Worker -> name it iserved-pay
+  2. Edit code -> paste all of worker.js -> Deploy
+  3. Settings -> Variables and Secrets, add:
+       STRIPE_SECRET   = the sk_live_... key   (mark as Secret)
+       OWNER_EMAILS    = dflanagan@iservedtransport.com
+       ALLOWED_ORIGIN  = https://iservedtransportation.com
+  4. Copy the worker URL and paste it into assets/config.js -> PAYMENT_API
+  5. Push. Done - the card form appears at checkout automatically.
+
+WHY THE WORKER: Stripe's secret key can charge cards and issue refunds.
+Anything in the website folder is readable by anyone who views the page
+source, so the key cannot live there. The worker runs on Cloudflare's
+servers where nobody can read it. The publishable key in config.js IS
+safe to be public - that is what it is designed for.
+
+IF THE SECRET KEY EVER LEAKS: Stripe -> Developers -> API keys -> roll it.
+Takes 20 seconds and instantly kills the old one.
+
+HOW CARDS WORK ONCE LIVE
+-------------------------
+  * At checkout the client enters their card. NOTHING is charged. The card
+    is stored with Stripe (never on this site) and attached to the ride.
+  * The moment a driver marks that ride Completed, the card is charged the
+    final fare automatically and the ride flips to Paid.
+  * If the charge fails, the client is emailed the bill instead and the
+    ride shows "last charge failed" with a Charge the card button to retry.
+  * Rides booked with a promo code (or by phone) have no card - those still
+    get the emailed bill.
+
 CLIENT PAYMENTS (billed the moment the ride is completed)
 ----------------------------------------------------------
 Nothing is charged when someone books. The SECOND a driver marks a ride

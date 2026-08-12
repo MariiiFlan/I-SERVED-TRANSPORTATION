@@ -44,22 +44,23 @@
     <div style="position:sticky;top:100px;display:flex;flex-direction:column;gap:16px;">
       <div class="card" style="gap:14px;">
         <span style="font:700 14px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.45 0.02 250);">Pay by card</span>
-        <div style="display:flex;flex-direction:column;gap:10px;opacity:0.45;pointer-events:none;">
-          <input class="inp" placeholder="Card number" disabled>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-            <input class="inp" placeholder="MM / YY" disabled>
-            <input class="inp" placeholder="CVC" disabled>
-          </div>
+        <div id="cardWrap" style="display:none;flex-direction:column;gap:12px;">
+          <div id="cardElement" style="padding:14px 15px;border:1px solid oklch(0.90 0.015 250);border-radius:10px;background:#fff;"></div>
+          <span id="cardErr" class="err"></span>
+          <button class="btn" id="saveCard" style="padding:15px;">Save card &amp; book this ride</button>
+          <span style="font:400 12.5px/1.6 Figtree,sans-serif;color:oklch(0.58 0.015 250);">
+            <b>You are not charged now.</b> Your card is stored securely with Stripe and charged only after your ride is completed, for the final confirmed fare. Card details never touch our servers.
+          </span>
         </div>
-        <!-- OWNER NOTE: when Stripe/PayPal is ready, the live payment button
-             replaces this block. Everything downstream already works. -->
-        <div style="padding:12px 14px;border-radius:10px;background:oklch(0.97 0.012 237);font:500 13.5px/1.55 Figtree,sans-serif;color:oklch(0.42 0.04 243);">
-          Online card payment isn't switched on yet. Book by phone at <a id="payTel" href="#"></a> - or use a promo code below.
+        <div id="cardOff" style="display:none;padding:12px 14px;border-radius:10px;background:oklch(0.97 0.012 237);font:500 13.5px/1.55 Figtree,sans-serif;color:oklch(0.42 0.04 243);">
+          Card payment is being set up. Book by phone at <a id="payTel" href="#"></a> - or use a promo code below.
         </div>
+        <div id="cardLoading" style="font:500 13.5px/1.55 Figtree,sans-serif;color:oklch(0.55 0.015 250);">Loading secure card form...</div>
       </div>
 
       <div class="card" style="gap:12px;">
         <span style="font:700 14px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.45 0.02 250);">Promo code</span>
+        <span style="font:400 13px/1.55 Figtree,sans-serif;color:oklch(0.58 0.015 250);">Have a code from dispatch? Enter it to book without a card on file.</span>
         <div style="display:flex;gap:10px;">
           <input id="promo" class="inp" placeholder="Enter code" style="text-transform:uppercase;">
           <button class="btn2" id="applyPromo" style="padding:13px 20px;font-size:14px;white-space:nowrap;">Apply</button>
@@ -75,6 +76,7 @@
 
 <div id="ftr"></div>
 
+<script src="https://js.stripe.com/v3/"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
@@ -116,6 +118,77 @@ document.getElementById('rows').innerHTML = rows.map(function(r){
     '<span style="font:600 15px/1.5 Figtree,sans-serif;color:oklch(0.30 0.02 250);">'+ISV.esc(r[1])+'</span></div>';
 }).join('');
 
+/* ---------- Stripe card on file ---------- */
+var stripe = null, cardEl = null, setupSecret = null, stripeCustomerId = null;
+
+function cardOff(reason){
+  document.getElementById('cardLoading').style.display = "none";
+  document.getElementById('cardWrap').style.display = "none";
+  var off = document.getElementById('cardOff');
+  off.style.display = "block";
+  if (reason) off.innerHTML = ISV.esc(reason) + ' Book by phone at <a href="tel:'+CONFIG.PHONE_TEL+'">'+CONFIG.PHONE_DISPLAY+'</a> - or use a promo code below.';
+  else {
+    var t = document.getElementById('payTel');
+    if (t){ t.textContent = CONFIG.PHONE_DISPLAY; t.href = 'tel:' + CONFIG.PHONE_TEL; }
+  }
+}
+
+function startCard(){
+  if (!CONFIG.PAYMENT_API || !CONFIG.STRIPE_PUBLISHABLE_KEY || !window.Stripe){ cardOff(); return; }
+  fetch(CONFIG.PAYMENT_API.replace(/\/$/, "") + "/setup-intent", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: draft.userEmail || "", name: draft.name || "", phone: draft.phone || "" })
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(d){
+    if (!d.clientSecret) throw new Error(d.error || "Could not start the card form");
+    setupSecret = d.clientSecret;
+    stripeCustomerId = d.customerId;
+    stripe = Stripe(CONFIG.STRIPE_PUBLISHABLE_KEY);
+    var elements = stripe.elements();
+    cardEl = elements.create('card', {
+      style: { base: { fontFamily: 'Figtree, sans-serif', fontSize: '16px', color: '#2b3340', '::placeholder': { color: '#9aa4b2' } } }
+    });
+    cardEl.mount('#cardElement');
+    cardEl.on('change', function(ev){
+      document.getElementById('cardErr').textContent = ev.error ? ev.error.message : "";
+    });
+    document.getElementById('cardLoading').style.display = "none";
+    document.getElementById('cardWrap').style.display = "flex";
+  })
+  .catch(function(e){ cardOff("Card payment is temporarily unavailable."); });
+}
+
+function bookWithCard(){
+  var btn = document.getElementById('saveCard');
+  var err = document.getElementById('cardErr');
+  err.textContent = "";
+  btn.disabled = true; btn.textContent = "Saving card...";
+  stripe.confirmCardSetup(setupSecret, {
+    payment_method: {
+      card: cardEl,
+      billing_details: { name: draft.name || "", phone: draft.phone || "", email: draft.userEmail || undefined }
+    }
+  }).then(function(res){
+    if (res.error) throw new Error(res.error.message);
+    var b = Object.assign({}, draft, {
+      stripeCustomerId: stripeCustomerId,
+      stripePaymentMethodId: res.setupIntent.payment_method,
+      cardOnFile: true
+    });
+    b.log = [{ t: Date.now(), text: "Booked online with a card on file - charged after the ride is completed (estimate " + ISV.money(b.fare) + ")" }];
+    btn.textContent = "Sending...";
+    return ISV.book.addAsync(b);
+  }).then(function(saved){
+    try { sessionStorage.removeItem('isv_checkout_draft'); } catch(e){}
+    location.href = '../confirm/?id=' + saved.id;
+  }).catch(function(e){
+    err.textContent = (e && e.message) || String(e);
+    btn.disabled = false; btn.textContent = "Save card & book this ride";
+  });
+}
+
 var appliedPromo = null;
 var completeBtn = document.getElementById('complete');
 function setComplete(on){
@@ -124,6 +197,9 @@ function setComplete(on){
   completeBtn.style.cursor = on ? "pointer" : "default";
   completeBtn.textContent = on ? "Complete booking - promo applied" : "Complete booking";
 }
+
+document.getElementById('saveCard').onclick = bookWithCard;
+startCard();
 
 document.getElementById('applyPromo').onclick = function(){
   var code = document.getElementById('promo').value.trim().toUpperCase();
@@ -147,8 +223,8 @@ completeBtn.onclick = function(){
   if (!appliedPromo) return;
   var err = document.getElementById('completeErr'); err.textContent = "";
   completeBtn.disabled = true; completeBtn.textContent = "Sending…";
-  var b = Object.assign({}, draft, { promo: appliedPromo });
-  b.log = [{ t: Date.now(), text: "Booked online with promo code " + appliedPromo + " - no charge (estimate " + ISV.money(b.fare) + ")" }];
+  var b = Object.assign({}, draft, { promo: appliedPromo, cardOnFile: false });
+  b.log = [{ t: Date.now(), text: "Booked online with promo code " + appliedPromo + " - no card on file (estimate " + ISV.money(b.fare) + ")" }];
   ISV.book.addAsync(b).then(function(saved){
     try { sessionStorage.removeItem('isv_checkout_draft'); } catch(e){}
     location.href = '../confirm/?id=' + saved.id;
