@@ -121,6 +121,17 @@ var CURRENT = null;  // driver being paid
 function isoToday(){ return new Date().toISOString().slice(0,10); }
 
 function render(){
+  try { renderInner(); }
+  catch (err) {
+    document.getElementById('drivers').innerHTML =
+      '<div class="card"><span style="font:500 14.5px/1.7 Figtree,sans-serif;color:oklch(0.50 0.15 25);">' +
+      'This page hit an error while drawing. Your drivers and pay records are safe.<br>' +
+      'If some site files are newer than others, re-upload the whole site folder.<br>' +
+      '<span style="color:oklch(0.55 0.015 250);font-size:12.5px;">Details: ' + ISV.esc(err && err.message ? err.message : String(err)) + '</span></span></div>';
+    console.error(err);
+  }
+}
+function renderInner(){
   document.getElementById('rulesNote').style.display = ISV.paymentsReady() ? "none" : "block";
   var drivers = ISV.auth.drivers();
   var totalOwed = 0, totalInvoiced = 0, totalPaid = 0, gross = 0;
@@ -175,7 +186,7 @@ function render(){
 
 function payTextFor(d, e){
   return (d.name ? d.name.split(" ")[0] + ", " : "") + "pay summary from " + CONFIG.COMPANY + ":\n" +
-    e.unpaid.length + " completed ride" + (e.unpaid.length===1?"":"s") + " at " + share + "% = " + ISV.money(e.owed) + " owed.\n" +
+    (e.unbilled.length + e.invoiced.length) + " completed ride" + ((e.unbilled.length + e.invoiced.length)===1?"":"s") + " at " + share + "% = " + ISV.money(e.owed) + " owed.\n" +
     "Invoice on the way.";
 }
 
