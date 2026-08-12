@@ -136,10 +136,13 @@ function chips(){
   document.getElementById('chips').innerHTML = FILTERS.map(function(f){
     var label = f === "Trash" ? "Trash ("+nTrash+")" : f;
     if (f === "Declined"){ var nD = ISV.book.all().filter(function(b){ return ISV.book.declinedBy(b).length && !b.driverEmail && b.status !== "Cancelled" && b.status !== "Completed"; }).length; label = "Declined ("+nD+")"; }
-    if (f === "Awaiting accept"){ var nA = ISV.book.all().filter(function(b){ return b.status === "Assigned"; }).length; label = "Awaiting accept ("+nA+")"; }
+    if (f === "Awaiting accept"){
+      var nA = ISV.book.all().filter(function(b){ return b.status === "Assigned"; }).length;
+      label = nA ? 'Awaiting accept <span style="margin-left:5px;display:inline-flex;align-items:center;justify-content:center;min-width:19px;height:19px;padding:0 6px;border-radius:999px;background:oklch(0.55 0.20 27);color:#fff;font:700 11.5px/1 Figtree,sans-serif;">'+nA+'</span>' : "Awaiting accept (0)";
+    }
     if (f === "Pending approval"){ var nP = ISV.book.all().filter(function(b){ return b.status === "Pending"; }).length; label = "Pending approval ("+nP+")"; }
     if (f === "Payment due"){ var nPay = ISV.book.all().filter(function(b){ return b.status === "Completed" && !b.clientPaidOn; }).length; label = "Payment due ("+nPay+")"; }
-    return '<button class="chip'+(fStatus===f?' on':'')+'" data-f="'+f+'" '+(f==="Trash"?'style="color:oklch(0.50 0.15 25);"':'')+'>'+label+'</button>';
+    return '<button class="chip'+(fStatus===f?' on':'')+'" data-f="'+f+'" style="display:inline-flex;align-items:center;'+(f==="Trash"?'color:oklch(0.50 0.15 25);':'')+'">'+label+'</button>';
   }).join('');
   document.querySelectorAll('[data-f]').forEach(function(el){ el.onclick=function(){ fStatus=this.getAttribute('data-f'); chips(); rows(); }; });
 }

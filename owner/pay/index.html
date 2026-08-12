@@ -75,6 +75,7 @@
 
     <div style="display:flex;flex-direction:column;gap:10px;">
       <button class="btn" id="payInvoice" style="padding:15px;">Create invoice</button>
+      <button class="btn2" id="payInvoiceIS" style="padding:14px;">Create invoice, then open Invoice Simple</button>
       <button class="btn2" id="payRecordOnly" style="padding:14px;">Record as already paid</button>
       <span id="payMsg" class="err"></span>
       <span style="font:400 12.5px/1.6 Figtree,sans-serif;color:oklch(0.58 0.015 250);">"Create invoice" builds a real invoice you can print, save as PDF, email, or text - it does NOT mark anything paid. It stays in Payment history where you can resend it any time, and mark it paid once the money actually goes out.</span>
@@ -276,6 +277,16 @@ document.getElementById('payInvoice').onclick = function(){
   ISV.book.markInvoiced(rec.rideIds, rec);
   document.getElementById('payModal').style.display = "none";
   location.href = "../invoice/?driver=" + encodeURIComponent(CURRENT.email) + "&payment=" + encodeURIComponent(rec.id);
+};
+
+// Same, but jumps straight to the Invoice Simple helper.
+document.getElementById('payInvoiceIS').onclick = function(){
+  var rec = buildRecord("sent");
+  if (!rec) return;
+  ISV.auth.addPayment(CURRENT.email, rec);
+  ISV.book.markInvoiced(rec.rideIds, rec);
+  document.getElementById('payModal').style.display = "none";
+  location.href = "../invoice/?driver=" + encodeURIComponent(CURRENT.email) + "&payment=" + encodeURIComponent(rec.id) + "&is=1";
 };
 
 // For when he already handed over cash and just needs it logged.
