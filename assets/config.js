@@ -63,7 +63,7 @@ window.CONFIG = {
   // Cloudflare Worker. See README.txt.
   STRIPE_PUBLISHABLE_KEY: "pk_live_51U3fgeAeWrRbLte2C7eI1LwgObSvLrNIXJ1vNvByJ6yd7CO41906Iyz7crtGzLL4apl4d7LJVCwBCtNpcSyUg2eZ00nxl9RnAd",
   // Filled in once the Worker is deployed, e.g. "https://iserved-pay.<name>.workers.dev"
-  PAYMENT_API: "",
+  PAYMENT_API: "https://iserved.officialkamariflanagan.workers.dev",
 
   // ---------------- DRIVER PAY ----------------
   // Drivers earn this share of each completed ride's fare.
