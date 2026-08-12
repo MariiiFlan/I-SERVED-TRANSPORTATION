@@ -94,7 +94,7 @@ if (!draft){ location.replace('../book/'); return; }
 
 document.getElementById('total').textContent = ISV.money(draft.fare);
 var f = ISV.fare(draft); // draft.miles is already the total for the whole trip
-document.getElementById('breakdown').innerHTML = f.rows.map(function(r){
+document.getElementById('breakdown').innerHTML = f.clientRows.map(function(r){
   return '<div style="display:flex;align-items:baseline;justify-content:space-between;gap:14px;">'+
     '<span style="font:400 14px/1.4 Figtree,sans-serif;color:oklch(0.52 0.015 250);">'+r.label+'</span>'+
     '<span style="font:600 14px/1.4 Figtree,sans-serif;color:oklch(0.32 0.02 250);">'+r.amount+'</span></div>';

@@ -56,6 +56,10 @@ window.CONFIG = {
     { id: "stretcher",  label: "Stretcher / gurney transport",    vehicle: "stretcher", note: "Lying down, two attendants" }
   ],
 
+  // ---------------- DRIVER PAY ----------------
+  // Drivers earn this share of each completed ride's fare.
+  DRIVER_SHARE: 0.60,
+
   // ---------------- CHECKOUT / PROMO ----------------
   PROMO_CODES: ["MARIMACHI06"],
 

@@ -20,6 +20,7 @@
   var BOOKINGS = [];          // visible bookings for this account's role
   var USERS = [];             // all user docs (owners only)
   var GRANTS = {};            // email -> {role, vehicle, cred, phone, active} (owners + own)
+  var PAYMENTS = {};          // email -> [payment records]  (OWNER ONLY)
   var BOOTSTRAPPED = false;   // does the site have its first owner yet
   var DBERROR = null;
   var unsubs = [];
@@ -154,7 +155,7 @@
 
   function subscribe() {
     clearSubs();
-    BOOKINGS = []; USERS = []; GRANTS = {};
+    BOOKINGS = []; USERS = []; GRANTS = {}; PAYMENTS = {};
     if (!ME) { fireChange(); return Promise.resolve(); }
     var firsts = [];
     var gotSnapshot = false;
@@ -178,6 +179,9 @@
       sub(db.collection("grants"), function (snap) {
         GRANTS = {}; snap.docs.forEach(function (d) { GRANTS[d.id] = d.data(); });
       });
+      sub(db.collection("payments"), function (snap) {
+        PAYMENTS = {}; snap.docs.forEach(function (d) { PAYMENTS[d.id] = (d.data() || {}).list || []; });
+      });
     } else if (ME.role === "driver") {
       sub(db.collection("bookings").where("driverEmail", "==", ME.email), applyBookings);
       // a driver may also have booked personal rides
@@ -199,7 +203,7 @@
       .then(function (doc) {
       if (doc.exists) {
         var d = doc.data();
-        ME = { uid: fbUser.uid, email: norm(d.email || fbUser.email), name: d.name || "", phone: d.phone || "", role: d.role || "client" };
+        ME = { uid: fbUser.uid, email: norm(d.email || fbUser.email), name: d.name || "", phone: d.phone || "", role: d.role || "client", photo: d.photo || "" };
         // pending grant elevation (owner promoted this email after signup)
         return withTimeout(db.collection("grants").doc(ME.email).get(), 5000)
           .catch(function (e) { if (e && e.code === "timeout") return restGet("grants", ME.email); throw e; })
@@ -329,7 +333,7 @@
         .catch(function (e) { alert(friendly(e)); });
     },
     accounts: function () {
-      var list = USERS.map(function (u) { return { name: u.name, email: norm(u.email), phone: u.phone, role: u.role || "client", uid: u.uid }; });
+      var list = USERS.map(function (u) { return { name: u.name, email: norm(u.email), phone: u.phone, role: u.role || "client", uid: u.uid, photo: u.photo || "" }; });
       Object.keys(GRANTS).forEach(function (email) {
         if (!list.find(function (u) { return u.email === email; }))
           list.push({ name: "(invited - hasn't created account yet)", email: email, role: GRANTS[email].role || "driver", pending: true });
@@ -337,9 +341,46 @@
       return list;
     },
     profile: function (email) { return GRANTS[norm(email)] || {}; },
+    // Payment history: owner-only collection. Drivers cannot read this at all.
+    payments: function (email) { return (PAYMENTS[norm(email)] || []).slice().sort(function (a, b) { return b.t - a.t; }); },
+    addPayment: function (email, rec) {
+      email = norm(email);
+      var list = (PAYMENTS[email] || []).concat([rec]);
+      PAYMENTS[email] = list; // optimistic
+      fireChange();
+      return withTimeout(db.collection("payments").doc(email).set({ list: list }, { merge: true }), 8000)
+        .catch(function (e) { if (e && e.code === "timeout") return restPatch("payments", email, { list: list }, ["list"]); throw e; })
+        .catch(function (e) { alert(friendly(e)); });
+    },
     drivers: function () {
       return AUTH.accounts().filter(function (u) { return u.role === "driver" || u.role === "owner"; })
         .map(function (u) { var pr = AUTH.profile(u.email); return Object.assign({}, u, pr, { active: pr.active !== false }); });
+    },
+    // A person editing their own name/phone/photo. Writes to their user doc
+    // so it shows up everywhere their name appears.
+    updateMe: function (patch) {
+      if (!ME) return Promise.reject("Not signed in.");
+      var clean = {};
+      if (patch.name != null) clean.name = String(patch.name).trim();
+      if (patch.phone != null) clean.phone = String(patch.phone).trim();
+      if (patch.photo != null) clean.photo = patch.photo;
+      Object.assign(ME, clean); // optimistic
+      var u = USERS.find(function (x) { return x.uid === ME.uid; });
+      if (u) Object.assign(u, clean);
+      fireChange();
+      return withTimeout(db.collection("users").doc(ME.uid).update(clean), 8000)
+        .catch(function (e) { if (e && e.code === "timeout") return restPatch("users", ME.uid, clean, Object.keys(clean)); throw e; })
+        .then(function () {
+          // keep the driver profile phone in step so dispatch can text them
+          if (clean.phone && (ME.role === "driver" || ME.role === "owner")) {
+            return AUTH.saveProfile(ME.email, { phone: clean.phone });
+          }
+        })
+        .catch(function (e) { throw friendly(e); });
+    },
+    photoFor: function (email) {
+      var u = AUTH.accounts().find(function (x) { return x.email === norm(email); });
+      return (u && u.photo) || "";
     },
     require: function (role, next) {
       if (!ME) { location.href = ISV.root + "account/?next=" + encodeURIComponent(next || location.pathname); return null; }
@@ -510,6 +551,24 @@
           "Assigned to " + (driverName || email) + " by " + (byName || "dispatch"));
       });
     },
+    driverCut: function (b) { return +(((b.fare || 0) * (C.DRIVER_SHARE || 0.6))).toFixed(2); },
+    // every completed ride for a driver, split into paid / unpaid
+    earnings: function (email) {
+      email = norm(email);
+      var rides = BOOK.all().filter(function (b) {
+        return b.driverEmail === email && b.status === "Completed";
+      });
+      var unpaid = rides.filter(function (b) { return !b.paidOn; });
+      var paid = rides.filter(function (b) { return b.paidOn; });
+      function sum(list) { return +(list.reduce(function (s, b) { return s + BOOK.driverCut(b); }, 0)).toFixed(2); }
+      return { rides: rides, unpaid: unpaid, paid: paid, owed: sum(unpaid), paidTotal: sum(paid), lifetime: sum(rides) };
+    },
+    markPaid: function (ids, payment) {
+      ids.forEach(function (id) {
+        BOOK.update(id, { paidOn: payment.date, paymentId: payment.id },
+          "Driver paid " + money(payment.amount ? BOOK.driverCut(BOOK.byId(id) || {}) : 0) + " (payment " + payment.id + ")");
+      });
+    },
     forDriver: function (email) {
       email = norm(email);
       return BOOK.all().filter(function (b) { return b.driverEmail === email && b.status !== "Cancelled"; });
@@ -534,13 +593,22 @@
     var assist = a.assist ? (C.ADDON_ASSIST || 0) : 0;
     var after = a.afterHours ? (C.ADDON_AFTERHOURS || 0) : 0;
     var rows = [];
-    if (baseTotal > 0) rows.push({ label: (legs > 1 ? "Base fare x2 (round trip)" : "Base fare") + " - " + vehicleShort(vehicle), amount: money(baseTotal) });
-    if (free > 0 && billable > 0) rows.push({ label: "First " + free + " miles", amount: "included" });
-    rows.push({ label: totalMiles + " mi x " + money(perMile) + "/mi", amount: money(mileage) });
+    // detail: true = internal math (dispatch/owner). Clients see the plain summary.
+    if (baseTotal > 0) rows.push({ label: (legs > 1 ? "Base fare x2 (round trip)" : "Base fare") + " - " + vehicleShort(vehicle), amount: money(baseTotal), detail: true });
+    if (free > 0 && billable > 0) rows.push({ label: "First " + free + " miles", amount: "included", detail: true });
+    rows.push({ label: totalMiles + " mi x " + money(perMile) + "/mi", amount: money(mileage), detail: true });
     if (assist) rows.push({ label: "Door-through-door assist", amount: money(assist) });
     if (after) rows.push({ label: "Before 6am / after 8pm", amount: money(after) });
     if (a.wait) rows.push({ label: "First hour of wait time", amount: "free" });
-    return { total: baseTotal + mileage + assist + after, rows: rows, miles: totalMiles };
+    var total = baseTotal + mileage + assist + after;
+    var clientRows = [
+      { label: vehicleShort(vehicle) + (legs > 1 ? ", round trip" : ", one way"), amount: totalMiles + " mi" }
+    ];
+    if (assist) clientRows.push({ label: "Door-through-door assist", amount: money(assist) });
+    if (after) clientRows.push({ label: "Before 6am / after 8pm", amount: money(after) });
+    if (a.wait) clientRows.push({ label: "First hour of wait time", amount: "included" });
+    clientRows.push({ label: "Your fare", amount: money(total) });
+    return { total: total, rows: rows, clientRows: clientRows, miles: totalMiles };
   }
   // convenience: pass one-way miles, get the total-miles figure back
   function totalMilesFor(oneWay, tripType) {
@@ -574,7 +642,8 @@
     var acct;
     if (!ME) acct = '<a href="' + root + 'account/" style="font:600 15px/1 Figtree,sans-serif;color:oklch(0.42 0.02 250);">Sign in</a>';
     else {
-      var links = '<a href="' + root + 'my-rides/" style="font:600 15px/1 Figtree,sans-serif;color:oklch(0.42 0.02 250);">My rides</a>';
+      var links = '<a href="' + root + 'profile/" title="Your profile" style="display:flex;align-items:center;gap:8px;color:oklch(0.42 0.02 250);font:600 15px/1 Figtree,sans-serif;">' + avatar(ME, 32) + '</a>' +
+        '<a href="' + root + 'my-rides/" style="font:600 15px/1 Figtree,sans-serif;color:oklch(0.42 0.02 250);">My rides</a>';
       if (ME.role === "driver") links += '<a href="' + root + 'driver/rides/" style="font:600 15px/1 Figtree,sans-serif;color:oklch(0.42 0.02 250);">Driver console</a>';
       if (ME.role === "owner") links += '<a href="' + root + 'owner/dashboard/" style="font:600 15px/1 Figtree,sans-serif;color:oklch(0.42 0.02 250);">Dispatch console</a>';
       acct = links;
@@ -617,10 +686,22 @@
       (DBERROR ? '<div style="background:oklch(0.50 0.15 25);color:#fff;padding:10px 12px;border-radius:9px;font:500 12.5px/1.5 Figtree,sans-serif;">' + esc(DBERROR) + '</div>' : '') +
       '<div class="side-nav" style="display:flex;flex-direction:column;gap:4px;">' + nav + '</div>' +
       '<div class="side-acct" style="margin-top:auto;display:flex;flex-direction:column;gap:12px;padding:16px;border-radius:12px;background:rgba(255,255,255,0.07);">' +
-      '<div class="side-who" style="display:flex;flex-direction:column;gap:2px;"><span style="font:600 14px/1.3 Figtree,sans-serif;color:#fff;">' + (me.name || "") + '</span>' +
-      '<span style="font:400 12px/1.3 Figtree,sans-serif;color:rgba(255,255,255,0.55);">' + (me.role === "owner" ? "Owner" : me.role === "driver" ? "Driver" : "") + '</span></div>' +
+      '<a href="' + root + 'profile/" class="side-who" style="display:flex;align-items:center;gap:10px;text-decoration:none;">' + avatar(me, 34) +
+      '<span style="display:flex;flex-direction:column;gap:2px;"><span style="font:600 14px/1.3 Figtree,sans-serif;color:#fff;">' + (me.name || "") + '</span>' +
+      '<span style="font:400 12px/1.3 Figtree,sans-serif;color:rgba(255,255,255,0.55);">' + (me.role === "owner" ? "Owner" : me.role === "driver" ? "Driver" : "") + '</span></span></a>' +
       '<button onclick="ISV.auth.signOutTo(\'' + root + '\')" style="cursor:pointer;background:none;padding:9px;border:1px solid rgba(255,255,255,0.28);border-radius:8px;font:600 13px/1 Figtree,sans-serif;color:#fff;text-align:center;">Sign out</button>' +
       '</div></aside>';
+  }
+
+  function avatar(person, size) {
+    var s = size || 36;
+    var name = (person && person.name) || "";
+    var initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map(function (w) { return w[0]; }).join("").toUpperCase() || "?";
+    var photo = person && person.photo;
+    if (photo) {
+      return '<img src="' + photo + '" alt="" style="width:' + s + 'px;height:' + s + 'px;border-radius:50%;object-fit:cover;flex:0 0 auto;background:oklch(0.93 0.01 250);">';
+    }
+    return '<div style="width:' + s + 'px;height:' + s + 'px;border-radius:50%;flex:0 0 auto;background:oklch(0.90 0.04 237);color:oklch(0.40 0.09 240);display:flex;align-items:center;justify-content:center;font:700 ' + Math.round(s * 0.38) + 'px/1 Figtree,sans-serif;">' + esc(initials) + '</div>';
   }
 
   function pill(status) {
@@ -665,7 +746,7 @@
     sendEmail: sendEmail, notifyNewBooking: notifyNewBooking, notifyAccepted: notifyAccepted, notifyDeclined: notifyDeclined,
     rideBlurb: rideBlurb, telHref: telHref, smsHref: smsHref, driverRideText: driverRideText, serviceLabel: serviceLabel,
     money: money, fare: fare, totalMilesFor: totalMilesFor, vehicleName: vehicleName, vehicleShort: vehicleShort,
-    logo: logo, header: header, footer: footer, sidebar: sidebar, pill: pill,
+    logo: logo, header: header, footer: footer, sidebar: sidebar, pill: pill, avatar: avatar,
     fmtDate: fmtDate, fmtTime: fmtTime, esc: esc, tripLine: tripLine, mapsUrl: mapsUrl, mapLink: mapLink
   };
 })();

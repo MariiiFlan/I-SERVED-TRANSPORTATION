@@ -190,10 +190,6 @@ var TT = [
   { id:"round",  label:"Round trip", note:"Same driver both ways" }
 ];
 var SVC = (CONFIG.SERVICE_TYPES || []);
-function rateNote(v){
-  var base = CONFIG.BASE[v] || 0, pm = CONFIG.PER_MILE[v] || 0;
-  return (base ? ISV.money(base) + " base + " : "") + ISV.money(pm) + "/mi";
-}
 var AO = [
   { id:"wait",       label:"Driver waits at the appointment",  price: CONFIG.ADDON_WAIT },
   { id:"assist",     label:"Door-through-door assistance",     price: CONFIG.ADDON_ASSIST },
@@ -211,7 +207,7 @@ function render(){
     return '<div class="selbox'+(S.service===t.id?' on':'')+'" data-svc="'+t.id+'" style="padding:16px;gap:6px;">'+
       '<span style="font:600 15px/1.2 Figtree,sans-serif;color:oklch(0.30 0.02 250);">'+t.label+'</span>'+
       '<span style="font:400 12px/1.4 Figtree,sans-serif;color:oklch(0.55 0.015 250);">'+(t.note||'')+'</span>'+
-      '<span style="font:600 12px/1 Figtree,sans-serif;color:oklch(0.55 0.115 238);">'+rateNote(t.vehicle)+'</span><div class="ring"></div></div>';
+      '<div class="ring"></div></div>';
   }).join('');
   document.getElementById('addOns').innerHTML = AO.map(function(a){
     var on = S.addOns[a.id];
@@ -251,7 +247,7 @@ function calc(){
   document.getElementById('totalSmall').textContent = ISV.money(f.total);
   document.getElementById('mobileTotal').textContent = ISV.money(f.total);
   document.getElementById('estSummary').textContent = f.miles + " mi · " + ISV.vehicleName(S.vehicle) + (S.tripType==="round" ? " · round trip" : " · one way");
-  document.getElementById('breakdown').innerHTML = f.rows.map(function(r){
+  document.getElementById('breakdown').innerHTML = f.clientRows.map(function(r){
     return '<div style="display:flex;align-items:baseline;justify-content:space-between;gap:14px;">'+
       '<span style="font:400 14px/1.4 Figtree,sans-serif;color:oklch(0.52 0.015 250);">'+r.label+'</span>'+
       '<span style="font:600 14px/1.4 Figtree,sans-serif;color:oklch(0.32 0.02 250);">'+r.amount+'</span></div>';

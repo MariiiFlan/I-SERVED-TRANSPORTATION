@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My Profile — I Served Transportation</title>
+<link rel="icon" href="../favicon.ico" sizes="any">
+<link rel="icon" type="image/png" href="../images/favicon-32.png">
+<link rel="apple-touch-icon" href="../images/favicon-180.png">
+<link rel="stylesheet" href="../assets/base.css">
+</head>
+<body>
+<div id="hdr"></div>
+
+<main style="max-width:720px;margin:0 auto;padding:56px 32px 90px;display:flex;flex-direction:column;gap:26px;">
+  <div style="display:flex;flex-direction:column;gap:8px;">
+    <span class="kicker">Your account</span>
+    <h1 style="margin:0;font:700 46px/1.05 'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:0.01em;">My profile</h1>
+    <p style="margin:0;font:400 16px/1.6 Figtree,sans-serif;color:oklch(0.50 0.015 250);">Changes here show up everywhere your name appears, including dispatch and your ride history.</p>
+  </div>
+
+  <div class="card" style="gap:22px;">
+    <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap;">
+      <div id="avatarSlot"></div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button class="btn2" id="pickPhoto" style="padding:11px 18px;font-size:14px;">Choose a photo</button>
+          <button class="btn2" id="removePhoto" style="padding:11px 18px;font-size:14px;color:oklch(0.50 0.15 25);display:none;">Remove</button>
+        </div>
+        <span style="font:400 12.5px/1.5 Figtree,sans-serif;color:oklch(0.58 0.015 250);">JPG or PNG. It gets resized automatically, so any size is fine.</span>
+      </div>
+      <input id="photoFile" type="file" accept="image/*" style="display:none;">
+    </div>
+
+    <div class="grid2" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+      <div style="display:flex;flex-direction:column;gap:7px;">
+        <label class="lbl">Full name</label>
+        <input id="pName" class="inp" placeholder="First and last name">
+      </div>
+      <div style="display:flex;flex-direction:column;gap:7px;">
+        <label class="lbl">Mobile number</label>
+        <input id="pPhone" class="inp" type="tel" placeholder="(000) 000-0000">
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:7px;">
+      <label class="lbl">Email</label>
+      <input id="pEmail" class="inp" disabled style="background:oklch(0.98 0.004 250);color:oklch(0.55 0.015 250);">
+      <span style="font:400 12.5px/1.5 Figtree,sans-serif;color:oklch(0.58 0.015 250);">Your email is your sign-in and can't be changed here.</span>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+      <button class="btn" id="save" style="padding:15px 28px;">Save changes</button>
+      <span id="msg" style="font:500 14px/1.5 Figtree,sans-serif;"></span>
+    </div>
+  </div>
+
+  <div id="driverBox" style="display:none;" class="card">
+    <span style="font:700 14px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.45 0.02 250);">Your driving</span>
+    <div id="driverStats" style="display:flex;gap:36px;flex-wrap:wrap;"></div>
+    <span style="font:400 13px/1.6 Figtree,sans-serif;color:oklch(0.58 0.015 250);">Questions about pay? Talk to dispatch.</span>
+  </div>
+
+  <div style="display:flex;gap:12px;flex-wrap:wrap;">
+    <a class="btn2" href="../my-rides/" style="display:inline-block;padding:14px 22px;">My rides</a>
+    <button class="btn2" id="signout" style="padding:14px 22px;">Sign out</button>
+  </div>
+</main>
+
+<div id="ftr"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+<script src="../assets/config.js"></script>
+<script src="../assets/app.js"></script>
+<script>
+ISV.root = "../";
+ISV.ready(function(){
+var me = ISV.auth.require(null, "/profile/");
+if (!me) return;
+
+document.getElementById('hdr').innerHTML = ISV.header("../");
+document.getElementById('ftr').innerHTML = ISV.footer("../");
+document.getElementById('signout').onclick = function(){ ISV.auth.signOutTo('../'); };
+
+var pendingPhoto = null;
+
+function paint(){
+  document.getElementById('avatarSlot').innerHTML = ISV.avatar({ name: document.getElementById('pName').value || me.name, photo: pendingPhoto !== null ? pendingPhoto : me.photo }, 84);
+  var has = (pendingPhoto !== null ? pendingPhoto : me.photo);
+  document.getElementById('removePhoto').style.display = has ? "" : "none";
+}
+
+document.getElementById('pName').value = me.name || "";
+document.getElementById('pPhone').value = me.phone || "";
+document.getElementById('pEmail').value = me.email || "";
+paint();
+document.getElementById('pName').addEventListener('input', paint);
+
+// driver earnings summary (their own only - no payment history here)
+if (me.role === "driver" || me.role === "owner"){
+  var e = ISV.book.earnings(me.email);
+  document.getElementById('driverBox').style.display = "flex";
+  document.getElementById('driverStats').innerHTML = [
+    ["Completed rides", e.rides.length],
+    ["Earned all time", ISV.money(e.lifetime)]
+  ].map(function(x){
+    return '<div style="display:flex;flex-direction:column;gap:4px;">'+
+      '<span style="font:600 11px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.58 0.015 250);">'+x[0]+'</span>'+
+      '<span style="font:700 28px/1 \'Barlow Condensed\',sans-serif;">'+x[1]+'</span></div>';
+  }).join('');
+}
+
+document.getElementById('pickPhoto').onclick = function(){ document.getElementById('photoFile').click(); };
+document.getElementById('removePhoto').onclick = function(){ pendingPhoto = ""; paint(); };
+
+document.getElementById('photoFile').onchange = function(){
+  var file = this.files[0];
+  if (!file) return;
+  var msg = document.getElementById('msg');
+  msg.textContent = "Processing photo...";
+  msg.style.color = "oklch(0.50 0.015 250)";
+  var reader = new FileReader();
+  reader.onload = function(ev){
+    var img = new Image();
+    img.onload = function(){
+      // square crop, resized small so it stores as text in the database
+      var size = 256;
+      var canvas = document.createElement('canvas');
+      canvas.width = size; canvas.height = size;
+      var ctx = canvas.getContext('2d');
+      var min = Math.min(img.width, img.height);
+      ctx.drawImage(img, (img.width-min)/2, (img.height-min)/2, min, min, 0, 0, size, size);
+      pendingPhoto = canvas.toDataURL('image/jpeg', 0.8);
+      msg.textContent = "Photo ready - hit save.";
+      msg.style.color = "oklch(0.42 0.10 160)";
+      paint();
+    };
+    img.onerror = function(){ msg.textContent = "That file didn't load as an image."; msg.style.color = "oklch(0.50 0.15 25)"; };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+  this.value = "";
+};
+
+document.getElementById('save').onclick = function(){
+  var msg = document.getElementById('msg');
+  var name = document.getElementById('pName').value.trim();
+  if (!name){ msg.textContent = "Add your name."; msg.style.color = "oklch(0.50 0.15 25)"; return; }
+  var btn = this; btn.disabled = true; btn.textContent = "Saving...";
+  var patch = { name: name, phone: document.getElementById('pPhone').value.trim() };
+  if (pendingPhoto !== null) patch.photo = pendingPhoto;
+  ISV.auth.updateMe(patch).then(function(){
+    pendingPhoto = null;
+    msg.textContent = "Saved. Your name and photo are updated everywhere.";
+    msg.style.color = "oklch(0.42 0.10 160)";
+    document.getElementById('hdr').innerHTML = ISV.header("../");
+    paint();
+  }).catch(function(err){
+    msg.textContent = "Couldn't save: " + err;
+    msg.style.color = "oklch(0.50 0.15 25)";
+  }).finally(function(){
+    btn.disabled = false; btn.textContent = "Save changes";
+  });
+};
+});
+</script>
+</body>
+</html>

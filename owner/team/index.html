@@ -90,6 +90,7 @@ if (me){
 document.getElementById('side').innerHTML = ISV.sidebar("../../", "team", "Dispatch console", [
   { id:"dash", label:"Dashboard", href:"../dashboard/" },
   { id:"sched", label:"Schedules", href:"../schedules/" },
+  { id:"pay", label:"Driver pay", href:"../pay/" },
   { id:"team", label:"Team", href:"../team/" },
   { id:"rep",  label:"Reports", href:"../reports/" }
 ]);
@@ -134,9 +135,10 @@ function render(){
     var active = p.active !== false;
     var isMe = u.email === me.email;
     return '<tr>'+
-      '<td><div style="font:600 14.5px/1.4 Figtree,sans-serif;">'+ISV.esc(u.name)+(isMe?' <span style="font:600 11px/1 Figtree,sans-serif;color:oklch(0.55 0.015 250);">(you)</span>':'')+'</div>'+
+      '<td><div style="display:flex;align-items:center;gap:10px;">'+ISV.avatar(u, 34)+'<div>'+
+      '<div style="font:600 14.5px/1.4 Figtree,sans-serif;">'+ISV.esc(u.name)+(isMe?' <span style="font:600 11px/1 Figtree,sans-serif;color:oklch(0.55 0.015 250);">(you)</span>':'')+'</div>'+
       '<div style="font:400 13px/1.4 Figtree,sans-serif;color:oklch(0.55 0.015 250);">'+ISV.esc(u.email)+(p.phone?' · '+ISV.esc(p.phone):'')+'</div>'+
-      (u.pending ? '<div style="margin-top:4px;"><span style="font:600 11px/1 Figtree,sans-serif;color:oklch(0.55 0.13 60);background:oklch(0.97 0.03 85);padding:4px 9px;border-radius:999px;">Invited - no account yet</span></div>' : '')+'</td>'+
+      (u.pending ? '<div style="margin-top:4px;"><span style="font:600 11px/1 Figtree,sans-serif;color:oklch(0.55 0.13 60);background:oklch(0.97 0.03 85);padding:4px 9px;border-radius:999px;">Invited - no account yet</span></div>' : '')+'</div></div></td>'+
       '<td><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'+
         '<span style="padding:5px 11px;border-radius:999px;background:'+(u.role==="owner"?'oklch(0.32 0.03 248)':'oklch(0.95 0.025 237)')+';font:600 12px/1 Figtree,sans-serif;color:'+(u.role==="owner"?'#fff':'oklch(0.45 0.10 240)')+';">'+(u.role==="owner"?'Owner':'Driver')+'</span>'+
         (u.role==="driver" && !active ? '<span style="padding:5px 11px;border-radius:999px;background:oklch(0.95 0.008 250);font:600 12px/1 Figtree,sans-serif;color:oklch(0.50 0.015 250);">Inactive</span>' : '')+

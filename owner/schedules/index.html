@@ -57,6 +57,7 @@ if (!me) return;
 document.getElementById('side').innerHTML = ISV.sidebar("../../", "sched", "Dispatch console", [
   { id:"dash", label:"Dashboard", href:"../dashboard/" },
   { id:"sched", label:"Schedules", href:"../schedules/" },
+  { id:"pay", label:"Driver pay", href:"../pay/" },
   { id:"team", label:"Team", href:"../team/" },
   { id:"rep",  label:"Reports", href:"../reports/" }
 ]);
@@ -146,6 +147,7 @@ function render(){
     var phone = d.phone || "";
     return '<div class="card" style="gap:12px;">'+
       '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;">'+
+        '<div style="display:flex;align-items:center;gap:13px;">'+ISV.avatar(d, 42)+
         '<div style="display:flex;flex-direction:column;gap:3px;">'+
           '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">'+
             '<span style="font:700 18px/1.2 Figtree,sans-serif;">'+ISV.esc(d.name)+'</span>'+
@@ -157,7 +159,7 @@ function render(){
             mine.length+' ride'+(mine.length===1?'':'s')+' · '+miles+' mi · '+ISV.money(money)+
             (d.vehicle ? ' · '+ISV.esc(d.vehicle) : '')+
             (declinedByThisDriver(d) ? ' · declined '+declinedByThisDriver(d)+' today' : '')+'</span>'+
-        '</div>'+
+        '</div></div>'+
         (phone ? '<div style="display:flex;gap:8px;flex-wrap:wrap;">'+
           '<a class="btn2" style="padding:10px 15px;font-size:13.5px;" href="'+ISV.telHref(phone)+'">Call</a>'+
           '<a class="btn2" style="padding:10px 15px;font-size:13.5px;" href="'+ISV.smsHref(phone, daySummaryText(d, mine, day))+'">Text schedule</a>'+

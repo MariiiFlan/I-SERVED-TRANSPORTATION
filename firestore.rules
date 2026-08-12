@@ -39,8 +39,11 @@ service cloud.firestore {
             && !exists(/databases/$(database)/documents/meta/bootstrap))
       );
       allow update: if isOwner()
+        // a person editing their own profile: name, phone, photo only.
+        // role can never be changed by the account holder.
         || (authed() && request.auth.uid == uid
-            && request.resource.data.role == resource.data.role)
+            && request.resource.data.role == resource.data.role
+            && request.resource.data.email == resource.data.email)
         || (authed() && request.auth.uid == uid
             && grantExists(myEmail())
             && request.resource.data.role == grantRole(myEmail()));
@@ -48,9 +51,16 @@ service cloud.firestore {
     }
 
     // Role grants + driver profiles, keyed by email. Owner-only writes.
+    // A person can read their own grant (that is how their role unlocks).
     match /grants/{email} {
       allow read: if authed() && (isOwner() || myEmail() == email);
       allow write: if isOwner();
+    }
+
+    // Driver payment history. OWNER ONLY, both ways - drivers can never
+    // read what anyone has been paid, including themselves.
+    match /payments/{email} {
+      allow read, write: if isOwner();
     }
 
     // Bookings. Anyone can submit one (public booking form, no login
