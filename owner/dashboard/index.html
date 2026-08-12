@@ -33,11 +33,23 @@
       <div class="statcard"><span class="k">Revenue booked</span><span class="v" id="stRev">$0</span><span class="s">Week to date</span></div>
     </div>
 
+    <div id="attention" style="display:none;padding:14px 18px;border-radius:12px;border:1px solid oklch(0.90 0.05 40);background:oklch(0.98 0.02 40);font:500 14.5px/1.6 Figtree,sans-serif;color:oklch(0.44 0.12 38);"></div>
+
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
       <input id="search" class="inp" placeholder="Search passenger, address, or ID" style="max-width:340px;padding:12px 14px;font-size:14px;">
       <select id="fDriver" class="inp" style="max-width:190px;padding:12px 14px;font-size:14px;"><option value="">All drivers</option></select>
       <div id="chips" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
       <button class="btn2" id="trashAll" style="padding:11px 16px;font-size:13.5px;color:oklch(0.50 0.15 25);border-color:oklch(0.88 0.04 25);margin-left:auto;">Trash all shown</button>
+    </div>
+
+    <div id="bulkBar" style="display:none;align-items:center;justify-content:space-between;gap:14px;padding:14px 18px;border:1px solid oklch(0.88 0.03 237);background:oklch(0.97 0.015 237);border-radius:12px;flex-wrap:wrap;">
+      <span id="bulkCount" style="font:600 15px/1.4 Figtree,sans-serif;color:oklch(0.32 0.03 245);"></span>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <select id="bulkDriver" class="inp" style="max-width:220px;padding:11px 14px;font-size:14px;"></select>
+        <button class="btn" id="bulkAssign" style="padding:12px 20px;font-size:14px;">Assign selected</button>
+        <button class="btn2" id="bulkTrash" style="padding:12px 16px;font-size:14px;color:oklch(0.50 0.15 25);">Trash</button>
+        <button class="btn2" id="bulkClear" style="padding:12px 16px;font-size:14px;">Clear</button>
+      </div>
     </div>
 
     <div id="trashBar" style="display:none;align-items:center;justify-content:space-between;gap:14px;padding:14px 18px;border:1px solid oklch(0.90 0.03 25);background:oklch(0.98 0.008 25);border-radius:12px;flex-wrap:wrap;">
@@ -46,7 +58,7 @@
     </div>
     <div style="background:#fff;border:1px solid oklch(0.92 0.012 250);border-radius:14px;overflow:auto;">
       <table class="tbl" style="min-width:860px;">
-        <thead><tr><th>Request</th><th>Passenger</th><th>Trip</th><th>Pickup</th><th>Driver</th><th>Fare</th><th>Status</th><th></th></tr></thead>
+        <thead><tr><th style="width:38px;"><input type="checkbox" id="selAll" style="width:17px;height:17px;accent-color:oklch(0.62 0.115 237);cursor:pointer;"></th><th>Request</th><th>Passenger</th><th>Trip</th><th>Pickup</th><th>Driver</th><th>Fare</th><th>Status</th><th></th></tr></thead>
         <tbody id="rows"></tbody>
       </table>
       <div id="emptyState" style="display:none;padding:44px;text-align:center;font:400 15px/1.7 Figtree,sans-serif;color:oklch(0.55 0.015 250);">
@@ -83,8 +95,9 @@ function sidebar(){
 var now = new Date();
 document.getElementById('today').textContent = now.toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
 
-var FILTERS = ["All","New","Assigned","En route","Completed","Cancelled","Trash"];
+var FILTERS = ["All","New","Awaiting accept","Declined","Assigned","En route","Completed","Cancelled","Trash"];
 var VISIBLE = [];
+var SELECTED = {};
 var fStatus = "All";
 function bucket(s){ // group live statuses into mockup buckets
   if (s === "Accepted") return "Assigned";
@@ -121,6 +134,8 @@ function chips(){
   var nTrash = ISV.book.trash().length;
   document.getElementById('chips').innerHTML = FILTERS.map(function(f){
     var label = f === "Trash" ? "Trash ("+nTrash+")" : f;
+    if (f === "Declined"){ var nD = ISV.book.all().filter(function(b){ return ISV.book.declinedBy(b).length && !b.driverEmail && b.status !== "Cancelled" && b.status !== "Completed"; }).length; label = "Declined ("+nD+")"; }
+    if (f === "Awaiting accept"){ var nA = ISV.book.all().filter(function(b){ return b.status === "Assigned"; }).length; label = "Awaiting accept ("+nA+")"; }
     return '<button class="chip'+(fStatus===f?' on':'')+'" data-f="'+f+'" '+(f==="Trash"?'style="color:oklch(0.50 0.15 25);"':'')+'>'+label+'</button>';
   }).join('');
   document.querySelectorAll('[data-f]').forEach(function(el){ el.onclick=function(){ fStatus=this.getAttribute('data-f'); chips(); rows(); }; });
@@ -147,7 +162,9 @@ function rows(){
   var inTrash = fStatus === "Trash";
   var all = (inTrash ? ISV.book.trash() : ISV.book.all()).slice().sort(function(a,b){ return (b.date+(b.time||'')) < (a.date+(a.time||'')) ? -1 : 1; });
   var list = all.filter(function(b){
-    if (!inTrash && fStatus !== "All" && bucket(b.status) !== fStatus) return false;
+    if (!inTrash && fStatus === "Awaiting accept" && b.status !== "Assigned") return false;
+    if (!inTrash && fStatus === "Declined" && !(ISV.book.declinedBy(b).length && !b.driverEmail && b.status !== "Cancelled" && b.status !== "Completed")) return false;
+    if (!inTrash && fStatus !== "All" && fStatus !== "Awaiting accept" && fStatus !== "Declined" && bucket(b.status) !== fStatus) return false;
     if (fd && b.driverEmail !== fd) return false;
     if (q){
       var hay = (b.id+" "+b.name+" "+b.phone+" "+b.pickup+" "+b.dropoff).toLowerCase();
@@ -161,16 +178,20 @@ function rows(){
   document.getElementById('emptyState').style.display = ISV.book.all().length ? "none" : "block";
   document.getElementById('rows').innerHTML = list.map(function(b){
     var dn = driverName(b.driverEmail);
+    var decl = ISV.book.declinedBy(b);
     return '<tr class="click" onclick="location.href=\'../booking/?id='+b.id+'\'">'+
-      '<td style="font:600 13px/1.4 Figtree,sans-serif;color:oklch(0.45 0.06 240);white-space:nowrap;">'+b.id+'</td>'+
+      '<td onclick="event.stopPropagation()"><input type="checkbox" class="rowsel" data-id="'+b.id+'" '+(SELECTED[b.id]?'checked':'')+' style="width:17px;height:17px;accent-color:oklch(0.62 0.115 237);cursor:pointer;"></td>'+
+      '<td style="font:600 13px/1.4 Figtree,sans-serif;color:oklch(0.45 0.06 240);white-space:nowrap;">'+b.id+
+        (decl.length ? '<div style="margin-top:5px;"><span style="padding:3px 8px;border-radius:999px;background:oklch(0.96 0.04 40);font:700 10.5px/1 Figtree,sans-serif;color:oklch(0.48 0.14 35);white-space:nowrap;">'+decl.length+' DECLINED</span></div>' : '')+'</td>'+
       '<td><div style="font:600 14px/1.4 Figtree,sans-serif;color:oklch(0.28 0.02 250);">'+ISV.esc(b.name)+'</div>'+
       '<div style="font:400 13px/1.4 Figtree,sans-serif;color:oklch(0.55 0.015 250);">'+ISV.esc(b.phone)+'</div></td>'+
       '<td><div style="max-width:280px;">'+ISV.mapLink(b.pickup)+' <span style="color:oklch(0.60 0.015 250);">→</span> '+ISV.mapLink(b.dropoff)+'</div>'+
       '<div style="font:400 12.5px/1.4 Figtree,sans-serif;color:oklch(0.55 0.015 250);">'+(ISV.serviceLabel(b.service) ? ISV.serviceLabel(b.service)+' · ' : '')+ISV.tripLine(b)+(b.payor ? ' · '+ISV.esc(b.payor) : '')+'</div></td>'+
       '<td style="white-space:nowrap;"><div style="font:600 13.5px/1.4 Figtree,sans-serif;">'+ISV.fmtDate(b.date)+'</div>'+
       '<div style="font:400 13px/1.4 Figtree,sans-serif;color:oklch(0.55 0.015 250);">'+ISV.fmtTime(b.time)+'</div></td>'+
-      '<td>'+(dn ? '<span style="font:500 13.5px/1.4 Figtree,sans-serif;">'+ISV.esc(dn)+'</span>'
-                 : '<span style="font:600 12px/1 Figtree,sans-serif;color:oklch(0.55 0.13 60);background:oklch(0.97 0.03 85);padding:5px 10px;border-radius:999px;white-space:nowrap;">Assign →</span>')+'</td>'+
+      '<td>'+(dn ? '<span style="font:500 13.5px/1.4 Figtree,sans-serif;">'+ISV.esc(dn)+'</span>'+(b.status==="Assigned"?'<div style="font:500 11.5px/1.5 Figtree,sans-serif;color:oklch(0.55 0.10 75);">awaiting accept</div>':'')
+                 : '<span style="font:600 12px/1 Figtree,sans-serif;color:oklch(0.55 0.13 60);background:oklch(0.97 0.03 85);padding:5px 10px;border-radius:999px;white-space:nowrap;">Assign →</span>')+
+        (decl.length ? '<div style="margin-top:4px;font:500 11.5px/1.5 Figtree,sans-serif;color:oklch(0.50 0.13 40);">'+ISV.esc(decl[decl.length-1].name)+' declined'+(decl[decl.length-1].reason?': '+ISV.esc(decl[decl.length-1].reason):'')+'</div>' : '')+'</td>'+
       '<td style="font:600 14px/1.4 Figtree,sans-serif;white-space:nowrap;">'+ISV.money(b.fare)+'</td>'+
       '<td>'+ISV.pill(b.status)+'</td>'+
       '<td>'+(inTrash
@@ -178,6 +199,22 @@ function rows(){
         : '<button data-trash="'+b.id+'" title="Move to trash" style="cursor:pointer;border:0;background:none;font-size:16px;line-height:1;padding:6px;border-radius:8px;color:oklch(0.55 0.10 25);">🗑</button>')+'</td></tr>';
   }).join('');
   document.getElementById('countLine').textContent = list.length + " of " + all.length + (inTrash ? " in trash" : " bookings");
+  document.querySelectorAll('.rowsel').forEach(function(el){
+    el.onclick = function(ev){ ev.stopPropagation(); };
+    el.onchange = function(){
+      if (this.checked) SELECTED[this.getAttribute('data-id')] = true;
+      else delete SELECTED[this.getAttribute('data-id')];
+      bulkBar();
+    };
+  });
+  var sa = document.getElementById('selAll');
+  sa.checked = list.length > 0 && list.every(function(b){ return SELECTED[b.id]; });
+  sa.onchange = function(){
+    var on = this.checked;
+    list.forEach(function(b){ if (on) SELECTED[b.id] = true; else delete SELECTED[b.id]; });
+    rows();
+  };
+  bulkBar();
   document.querySelectorAll('[data-trash]').forEach(function(el){
     el.onclick = function(ev){ ev.stopPropagation(); ISV.book.moveToTrash(this.getAttribute('data-trash'), me.name); refresh(); };
   });
@@ -188,6 +225,56 @@ function rows(){
 
 document.getElementById('search').addEventListener('input', rows);
 document.getElementById('fDriver').addEventListener('change', rows);
+
+function selectedIds(){ return Object.keys(SELECTED); }
+function bulkBar(){
+  var ids = selectedIds();
+  var bar = document.getElementById('bulkBar');
+  bar.style.display = ids.length ? "flex" : "none";
+  if (!ids.length) return;
+  document.getElementById('bulkCount').textContent = ids.length + " ride" + (ids.length===1?"":"s") + " selected";
+  var sel = document.getElementById('bulkDriver');
+  var cur = sel.value;
+  var drivers = ISV.auth.drivers().filter(function(d){ return d.active; });
+  sel.innerHTML = '<option value="">Choose a driver...</option>' + drivers.map(function(d){
+    return '<option value="'+ISV.esc(d.email)+'">'+ISV.esc(d.name)+(d.vehicle?' ('+ISV.esc(d.vehicle)+')':'')+'</option>';
+  }).join('');
+  sel.value = cur;
+}
+document.getElementById('bulkClear').onclick = function(){ SELECTED = {}; rows(); };
+document.getElementById('bulkTrash').onclick = function(){
+  var ids = selectedIds();
+  if (!ids.length) return;
+  if (confirm("Move " + ids.length + " ride" + (ids.length===1?"":"s") + " to the trash?")){
+    ids.forEach(function(id){ ISV.book.moveToTrash(id, me.name); });
+    SELECTED = {}; refresh();
+  }
+};
+document.getElementById('bulkAssign').onclick = function(){
+  var ids = selectedIds();
+  var email = document.getElementById('bulkDriver').value;
+  if (!email){ alert("Pick a driver first."); return; }
+  var d = ISV.auth.accounts().find(function(u){ return u.email === email; }) || {};
+  var conflicts = ids.filter(function(id){
+    var b = ISV.book.byId(id);
+    return b && ISV.book.declinedBy(b).some(function(x){ return x.name === d.name; });
+  });
+  var msg = "Assign " + ids.length + " ride" + (ids.length===1?"":"s") + " to " + (d.name || email) + "?";
+  if (conflicts.length) msg += "\n\nHeads up: " + conflicts.length + " of these were already declined by this driver.";
+  if (!confirm(msg)) return;
+  var texted = ids.map(function(id){ return ISV.book.byId(id); }).filter(Boolean);
+  ISV.book.assignMany(ids, email, d.name, me.name);
+  SELECTED = {};
+  refresh();
+  var p = ISV.auth.profile(email), phone = p.phone || d.phone || "";
+  if (phone && texted.length && confirm("Text " + (d.name||"the driver") + " these " + texted.length + " rides now?")){
+    var body = (d.name ? d.name.split(" ")[0] + ", " : "") + "you've been assigned " + texted.length + " ride" + (texted.length===1?"":"s") + ":\n\n" +
+      texted.map(function(b){
+        return ISV.fmtDate(b.date) + " " + ISV.fmtTime(b.time) + " - " + b.name + "\n  From: " + b.pickup + "\n  To: " + b.dropoff + "\n  " + b.id;
+      }).join("\n\n") + "\n\nOpen your driver console to accept.";
+    location.href = ISV.smsHref(phone, body);
+  }
+};
 
 document.getElementById('trashAll').onclick = function(){
   var n = VISIBLE.length;
@@ -220,7 +307,22 @@ document.getElementById('seed').onclick = function(e){
   refresh();
 };
 
-function refresh(){ sidebar(); stats(); driverFilter(); rows(); }
+function attention(){
+  var all = ISV.book.all();
+  var declined = all.filter(function(b){ return ISV.book.declinedBy(b).length && !b.driverEmail && b.status !== "Cancelled" && b.status !== "Completed"; });
+  var stale = all.filter(function(b){ return b.status === "Assigned" && b.assignedAt && (Date.now() - b.assignedAt) > 2*60*60*1000; });
+  var el = document.getElementById('attention');
+  var bits = [];
+  if (declined.length) bits.push('<b>'+declined.length+'</b> ride'+(declined.length===1?'':'s')+' came back declined and need'+(declined.length===1?'s':'')+' a new driver');
+  if (stale.length) bits.push('<b>'+stale.length+'</b> assigned ride'+(stale.length===1?'':'s')+' still not accepted after 2 hours');
+  if (bits.length){
+    el.style.display = "block";
+    el.innerHTML = "Needs your attention: " + bits.join(" &nbsp;·&nbsp; ") + '. <a href="#" id="jumpDeclined" style="font-weight:700;">Show them</a>';
+    var j = document.getElementById('jumpDeclined');
+    if (j) j.onclick = function(e){ e.preventDefault(); fStatus = declined.length ? "Declined" : "Awaiting accept"; chips(); rows(); };
+  } else el.style.display = "none";
+}
+function refresh(){ sidebar(); stats(); driverFilter(); rows(); attention(); }
 chips(); refresh();
 ISV.onChange(refresh);
 setInterval(refresh, 4000);

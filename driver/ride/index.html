@@ -128,8 +128,9 @@ function render(){
   });
   var dec = document.getElementById('decline');
   if (dec) dec.onclick = function(){
-    var reason = prompt("What's the reason? Dispatch will see it.");
+    var reason = prompt("What should dispatch know? (car trouble, double-booked, too far, etc.)");
     if (reason === null) return;
+    if (!reason.trim() && !confirm("Send it back with no reason? Dispatch won't know why.")) return;
     var bb = ISV.book.byId(id);
     ISV.book.update(id, { status:"New", driverEmail:null }, "Declined by " + me.name + (reason ? " - " + reason : ""));
     if (bb) ISV.notifyDeclined(bb, me.name, reason);

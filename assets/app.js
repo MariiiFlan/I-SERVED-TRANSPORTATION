@@ -498,6 +498,18 @@
       if (!me) return [];
       return BOOK.all().filter(function (b) { return b.userEmail === me.email; });
     },
+    declinedBy: function (b) { // [{name, reason, t}] from the activity log
+      return (b.log || []).filter(function (l) { return /declined by/i.test(l.text || ""); }).map(function (l) {
+        var m = String(l.text).match(/Declined by ([^-]+?)(?:\s+-\s+(.*))?$/i);
+        return { name: m ? m[1].trim() : "A driver", reason: m && m[2] ? m[2].trim() : "", t: l.t };
+      });
+    },
+    assignMany: function (ids, email, driverName, byName) {
+      ids.forEach(function (id) {
+        BOOK.update(id, { driverEmail: norm(email), status: "Assigned", assignedAt: Date.now() },
+          "Assigned to " + (driverName || email) + " by " + (byName || "dispatch"));
+      });
+    },
     forDriver: function (email) {
       email = norm(email);
       return BOOK.all().filter(function (b) { return b.driverEmail === email && b.status !== "Cancelled"; });

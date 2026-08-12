@@ -35,7 +35,7 @@ button { font-family: Figtree, sans-serif; }
 .chip { cursor: pointer; padding: 9px 15px; border-radius: 999px; border: 1px solid oklch(0.90 0.015 250); background: #fff; font: 600 13px/1 Figtree, sans-serif; color: oklch(0.45 0.015 250); }
 .chip.on { background: oklch(0.32 0.03 248); border-color: oklch(0.32 0.03 248); color: #fff; }
 .tbl { width: 100%; border-collapse: collapse; background: #fff; }
-.tbl th { text-align: left; padding: 12px 14px; font: 600 11px/1 Barlow, sans-serif; letter-spacing: 0.13em; text-transform: uppercase; color: oklch(0.55 0.015 250); border-bottom: 1px solid oklch(0.92 0.012 250); }
+.tbl th { position: sticky; top: 0; background: #fff; z-index: 5; text-align: left; padding: 12px 14px; font: 600 11px/1 Barlow, sans-serif; letter-spacing: 0.13em; text-transform: uppercase; color: oklch(0.55 0.015 250); border-bottom: 1px solid oklch(0.92 0.012 250); }
 .tbl td { padding: 14px; border-bottom: 1px solid oklch(0.95 0.008 250); font: 400 14px/1.45 Figtree, sans-serif; vertical-align: top; }
 .tbl tr.click { cursor: pointer; }
 .tbl tr.click:hover td { background: oklch(0.98 0.008 237); }

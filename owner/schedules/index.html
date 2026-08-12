@@ -35,7 +35,7 @@
     </div>
 
     <div id="unassignedBox" style="display:none;flex-direction:column;gap:10px;padding:18px 20px;border:1px solid oklch(0.90 0.04 60);background:oklch(0.99 0.02 85);border-radius:13px;">
-      <span style="font:700 14px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.48 0.10 70);">Needs rescheduling</span>
+      <span style="font:700 14px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.48 0.10 70);">Unassigned &amp; declined - needs a driver</span>
       <div id="unassignedList" style="display:flex;flex-direction:column;gap:8px;"></div>
     </div>
 
@@ -110,6 +110,12 @@ function rideRow(b){
   '</div>';
 }
 
+function declinedByThisDriver(d){
+  var day = dayInput.value;
+  return ISV.book.all().filter(function(b){
+    return b.date === day && ISV.book.declinedBy(b).some(function(x){ return x.name === d.name; });
+  }).length;
+}
 function render(){
   var day = dayInput.value;
   var all = ISV.book.all().filter(function(b){ return b.date === day; })
@@ -149,7 +155,8 @@ function render(){
           '</div>'+
           '<span style="font:400 13px/1.5 Figtree,sans-serif;color:oklch(0.55 0.015 250);">'+
             mine.length+' ride'+(mine.length===1?'':'s')+' · '+miles+' mi · '+ISV.money(money)+
-            (d.vehicle ? ' · '+ISV.esc(d.vehicle) : '')+'</span>'+
+            (d.vehicle ? ' · '+ISV.esc(d.vehicle) : '')+
+            (declinedByThisDriver(d) ? ' · declined '+declinedByThisDriver(d)+' today' : '')+'</span>'+
         '</div>'+
         (phone ? '<div style="display:flex;gap:8px;flex-wrap:wrap;">'+
           '<a class="btn2" style="padding:10px 15px;font-size:13.5px;" href="'+ISV.telHref(phone)+'">Call</a>'+

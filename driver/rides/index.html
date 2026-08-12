@@ -138,8 +138,9 @@ function list(){
   });
   document.querySelectorAll('[data-decline]').forEach(function(el){
     el.onclick = function(){
-      var reason = prompt("Send it back to dispatch - what's the reason?");
+      var reason = prompt("Send it back to dispatch. What should they know? (car trouble, double-booked, too far, etc.)");
       if (reason === null) return;
+      if (!reason.trim() && !confirm("Send it back with no reason? Dispatch won't know why.")) return;
       var did = this.getAttribute('data-decline');
       var bb = ISV.book.byId(did);
       ISV.book.update(did, { status:"New", driverEmail:null }, "Declined by " + me.name + (reason ? " - " + reason : ""));
