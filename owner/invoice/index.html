@@ -26,7 +26,6 @@
     <button class="btn" id="printBtn" style="padding:12px 20px;font-size:14px;">Print / Save as PDF</button>
     <button class="btn2" id="emailBtn" style="padding:12px 18px;font-size:14px;">Email to driver</button>
     <button class="btn2" id="textBtn" style="padding:12px 18px;font-size:14px;">Text the driver</button>
-    <button class="btn2" id="copyBtn" style="padding:12px 18px;font-size:14px;">Copy all details</button>
     <span id="barMsg" style="font:500 13.5px/1.4 Figtree,sans-serif;color:oklch(0.42 0.10 160);"></span>
   </div>
 
@@ -177,14 +176,6 @@ function copyText(t){
   return Promise.reject();
 }
 
-
-document.getElementById('copyBtn').onclick = function(){
-  var t = plainText();
-  if (navigator.clipboard && navigator.clipboard.writeText){
-    navigator.clipboard.writeText(t).then(function(){ msg("Copied to the clipboard."); },
-                                         function(){ msg("Couldn't copy automatically.", true); });
-  } else msg("Copying isn't supported in this browser.", true);
-};
 
 function msg(text, bad){
   var el = document.getElementById('barMsg');

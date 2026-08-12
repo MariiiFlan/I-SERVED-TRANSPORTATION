@@ -75,9 +75,8 @@
 
     <div style="display:flex;flex-direction:column;gap:10px;">
       <button class="btn" id="payInvoice" style="padding:15px;">Create invoice</button>
-      <button class="btn2" id="payRecordOnly" style="padding:14px;">Record as already paid</button>
       <span id="payMsg" class="err"></span>
-      <span style="font:400 12.5px/1.6 Figtree,sans-serif;color:oklch(0.58 0.015 250);">"Create invoice" builds an I Served invoice you can print, save as PDF, email, or text to the driver. It does NOT mark anything paid - it stays in Payment history where you can resend it any time, and mark it paid once the money actually goes out.</span>
+      <span style="font:400 12.5px/1.6 Figtree,sans-serif;color:oklch(0.58 0.015 250);">Builds an I Served invoice you can print, save as PDF, email, or text to the driver. It does not mark anything paid - it lives in Payment history where you can resend it any time and mark it paid once the money goes out.</span>
     </div>
   </div>
 </div>
@@ -272,23 +271,16 @@ function buildRecord(status){
 document.getElementById('payInvoice').onclick = function(){
   var rec = buildRecord("sent");
   if (!rec) return;
-  ISV.auth.addPayment(CURRENT.email, rec);
-  ISV.book.markInvoiced(rec.rideIds, rec);
-  document.getElementById('payModal').style.display = "none";
-  location.href = "../invoice/?driver=" + encodeURIComponent(CURRENT.email) + "&payment=" + encodeURIComponent(rec.id);
-};
-
-// For when he already handed over cash and just needs it logged.
-document.getElementById('payRecordOnly').onclick = function(){
-  var rec = buildRecord("paid");
-  if (!rec) return;
-  if (!confirm("Record " + ISV.money(rec.amount) + " to " + CURRENT.name + " as ALREADY PAID?\n\nOnly do this if the money has actually gone out.")) return;
-  rec.confirmedOn = rec.date;
-  ISV.auth.addPayment(CURRENT.email, rec);
-  ISV.book.markInvoiced(rec.rideIds, rec);
-  ISV.book.markPaid(rec.rideIds, rec);
-  document.getElementById('payModal').style.display = "none";
-  render();
+  var btn = this; btn.disabled = true; btn.textContent = "Building invoice...";
+  var email = CURRENT.email;
+  // wait for it to actually save before opening it
+  Promise.resolve(ISV.auth.addPayment(email, rec)).then(function(){
+    ISV.book.markInvoiced(rec.rideIds, rec);
+    location.href = "../invoice/?driver=" + encodeURIComponent(email) + "&payment=" + encodeURIComponent(rec.id);
+  }).catch(function(e){
+    document.getElementById('payMsg').textContent = "Couldn't save the invoice: " + e;
+    btn.disabled = false; btn.textContent = "Create invoice";
+  });
 };
 
 /* ---------- history modal ---------- */
