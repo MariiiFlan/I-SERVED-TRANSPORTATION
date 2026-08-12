@@ -27,6 +27,7 @@
     </div>
 
     <div id="chips" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
+    <div id="diag" style="display:none;padding:16px 18px;border:1px solid oklch(0.90 0.03 60);background:oklch(0.99 0.02 85);border-radius:12px;font:400 13.5px/1.7 Figtree,sans-serif;color:oklch(0.42 0.06 60);"></div>
     <div id="list" style="display:flex;flex-direction:column;gap:14px;"></div>
   </main>
 </div>
@@ -48,7 +49,8 @@ document.getElementById('side').innerHTML = ISV.sidebar("../../", "rides", "Driv
 document.getElementById('today').textContent = new Date().toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
 
 var view = "today";
-var TABS = [["today","Today"],["upcoming","Upcoming"],["done","Completed"]];
+var pickedTab = false;
+var TABS = [["today","Today"],["upcoming","Upcoming"],["all","All rides"],["done","Completed"]];
 function iso(d){ return d.toISOString().slice(0,10); }
 
 function leaveBy(t){
@@ -66,8 +68,14 @@ function chips(){
   var counts = {
     today: mine.filter(function(b){ return b.date === t && b.status !== "Completed"; }).length,
     upcoming: mine.filter(function(b){ return b.date > t && b.status !== "Completed"; }).length,
+    all: mine.filter(function(b){ return b.status !== "Completed"; }).length,
     done: mine.filter(function(b){ return b.status === "Completed"; }).length
   };
+  // first load: if nothing is on today but rides exist elsewhere, show them
+  if (!pickedTab){
+    pickedTab = true;
+    if (!counts.today && counts.all) view = "all";
+  }
   document.getElementById('chips').innerHTML = TABS.map(function(x){
     return '<button class="chip'+(view===x[0]?' on':'')+'" data-v="'+x[0]+'">'+x[1]+' ('+counts[x[0]]+')</button>';
   }).join('');
@@ -103,6 +111,7 @@ function list(){
   var rows = mine.filter(function(b){
     if (view === "today") return b.date === t && b.status !== "Completed";
     if (view === "upcoming") return b.date > t && b.status !== "Completed";
+    if (view === "all") return b.status !== "Completed";
     return b.status === "Completed";
   }).sort(function(a,b){ return (a.date+(a.time||'')) < (b.date+(b.time||'')) ? -1 : 1; });
 
@@ -126,7 +135,11 @@ function list(){
         '<a class="btn2" style="padding:12px 18px;font-size:14px;display:inline-block;" href="../ride/?id='+b.id+'">Open ride</a>'+
       '</div></div>';
   }).join('')
-  : '<div style="border:1px dashed oklch(0.88 0.02 250);border-radius:14px;padding:40px;text-align:center;font:400 15px/1.7 Figtree,sans-serif;color:oklch(0.55 0.015 250);">Nothing here yet. Rides appear the moment dispatch assigns them to you.</div>';
+  : '<div style="border:1px dashed oklch(0.88 0.02 250);border-radius:14px;padding:36px;text-align:center;font:400 15px/1.7 Figtree,sans-serif;color:oklch(0.55 0.015 250);">'+
+      (mine.length
+        ? 'No rides in this view. Try the <b>All rides</b> tab - you have '+mine.length+' total.'
+        : 'Nothing assigned to you yet. Rides show up here the moment dispatch assigns them.<br><span style="font-size:13px;">Signed in as '+ISV.esc(me.email)+' - dispatch must assign to this exact email.</span>')+
+    '</div>';
 
   document.querySelectorAll('[data-accept]').forEach(function(el){
     el.onclick = function(){
@@ -150,7 +163,45 @@ function list(){
   });
 }
 
-function refresh(){ chips(); stats(); list(); }
+function diag(){
+  var el = document.getElementById('diag');
+  var mine = ISV.book.forDriver(me.email);
+  if (mine.length){ el.style.display = "none"; return; }
+  el.style.display = "block";
+  el.innerHTML =
+    '<b>No rides are reaching this account.</b> Here is exactly what your browser sees:<br>' +
+    '&bull; Signed in as <b>' + ISV.esc(me.email) + '</b><br>' +
+    '&bull; Role: <b>' + ISV.esc(me.role) + '</b><br>' +
+    '&bull; Rides returned by the live connection: <b>' + ISV.book.all().length + '</b><br>' +
+    (ISV.driverQueryOk() === false ? '&bull; <b style="color:oklch(0.50 0.15 25);">The live connection was refused.</b> Usually the database rules need re-publishing, or an ad blocker is blocking it.<br>' : '') +
+    (ISV.dbError() ? '&bull; ' + ISV.esc(ISV.dbError()) + '<br>' : '') +
+    '<div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">' +
+      '<button class="btn2" id="reloadRides" style="padding:10px 16px;font-size:13.5px;">Reload from server</button>' +
+      '<span id="reloadMsg" style="font:500 13px/1.5 Figtree,sans-serif;"></span>' +
+    '</div>' +
+    '<div style="margin-top:8px;font-size:12.5px;color:oklch(0.55 0.015 250);">Dispatch must assign the ride to this exact email address.</div>';
+
+  document.getElementById('reloadRides').onclick = function(){
+    var msg = document.getElementById('reloadMsg');
+    msg.textContent = "Checking the server directly...";
+    msg.style.color = "oklch(0.50 0.015 250)";
+    ISV.fetchMyRides().then(function(res){
+      if (res.error){
+        msg.textContent = "Server said: " + res.error;
+        msg.style.color = "oklch(0.50 0.15 25)";
+      } else if (!res.rides.length){
+        msg.textContent = "The server has 0 rides for " + me.email + " - so nothing has been assigned to this address yet.";
+        msg.style.color = "oklch(0.48 0.12 45)";
+      } else {
+        msg.textContent = "Found " + res.rides.length + " ride(s). Loading them now.";
+        msg.style.color = "oklch(0.42 0.10 160)";
+        pickedTab = false;
+        refresh();
+      }
+    });
+  };
+}
+function refresh(){ chips(); stats(); list(); diag(); }
 refresh();
 ISV.onChange(refresh);
 setInterval(refresh, 4000);

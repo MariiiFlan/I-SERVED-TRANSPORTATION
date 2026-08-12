@@ -188,7 +188,7 @@ function render(){
         })()+
         (b.status === "Pending" ? '<div style="padding:12px 14px;border-radius:10px;background:oklch(0.97 0.04 60);border:1px solid oklch(0.90 0.05 55);font:500 13.5px/1.5 Figtree,sans-serif;color:oklch(0.46 0.13 45);">Approve this request first - it stays out of the drivers\' consoles until you do.</div>' : '')+
         '<span style="font:400 14px/1.5 Figtree,sans-serif;color:oklch(0.52 0.015 250);">'+
-          (b.driverEmail ? 'Assigned to <b>'+ISV.esc((ISV.auth.accounts().find(function(u){return u.email===b.driverEmail;})||{}).name || b.driverEmail)+'</b>'+(b.status==="Accepted"||b.status==="En route"||b.status==="Picked up"||b.status==="Completed" ? ' and accepted.' : '.')+'' : 'No driver on this ride yet.')+'</span>'+
+          (b.driverEmail ? 'Assigned to <b>'+ISV.esc((ISV.auth.accounts().find(function(u){return u.email===b.driverEmail;})||{}).name || b.driverEmail)+'</b> ('+ISV.esc(b.driverEmail)+')'+(b.status==="Accepted"||b.status==="En route"||b.status==="Picked up"||b.status==="Completed" ? ' and accepted.' : '.')+'' : 'No driver on this ride yet.')+'</span>'+
         '<div style="display:flex;flex-direction:column;gap:8px;">'+
           (drivers.length ? drivers.map(function(d){
             var on = b.driverEmail === d.email;

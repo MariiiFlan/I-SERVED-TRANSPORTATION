@@ -8,7 +8,9 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     function authed() { return request.auth != null; }
-    function myEmail() { return request.auth.token.email; }
+    // Stored emails are always lowercase. The sign-in token keeps whatever
+    // capitalisation the person typed, so always compare lowercased.
+    function myEmail() { return request.auth.token.email.lower(); }
     function isOwner() {
       return authed() &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'owner';
@@ -77,6 +79,8 @@ service cloud.firestore {
         isOwner()
         || resource.data.driverEmail == myEmail()
       );
+      // NOTE: driver/client queries must filter on driverEmail or userEmail
+      // equal to their own lowercase email, or Firestore rejects the query.
       allow delete: if isOwner();
     }
   }

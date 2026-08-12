@@ -24,6 +24,7 @@
   var PAYMENTS_OK = true;     // false when the payments rules aren't published yet
   var BOOTSTRAPPED = false;   // does the site have its first owner yet
   var DBERROR = null;
+  var DRIVER_QUERY_OK = null;   // null = not answered yet, false = blocked
   var unsubs = [];
   var changeHandlers = [];
 
@@ -166,7 +167,7 @@
       unsubs.push(q.onSnapshot(function (snap) {
         gotSnapshot = true; stopPolling();
         apply(snap); resolveFirst(); fireChange();
-      }, function (err) { DBERROR = friendly(err); resolveFirst(); fireChange(); }));
+      }, function (err) { DBERROR = friendly(err); DRIVER_QUERY_OK = false; resolveFirst(); fireChange(); }));
     }
     setTimeout(function () { if (!gotSnapshot && ME) startPolling(); }, 8000);
     function applyBookings(snap) {
@@ -187,12 +188,24 @@
         PAYMENTS_OK = true; fireChange();
       }, function () { PAYMENTS_OK = false; fireChange(); }));
     } else if (ME.role === "driver") {
-      sub(db.collection("bookings").where("driverEmail", "==", ME.email), applyBookings);
-      // a driver may also have booked personal rides
+      // Two queries feed one list: rides assigned to them, plus rides they
+      // booked as a customer. Keep them in separate buckets and merge, or
+      // whichever snapshot lands last wipes the other one out.
+      var assignedBucket = [], ownBucket = [];
+      function mergeBuckets() {
+        var seen = {}; BOOKINGS = [];
+        assignedBucket.concat(ownBucket).forEach(function (b) {
+          if (!seen[b.id]) { seen[b.id] = 1; BOOKINGS.push(b); }
+        });
+      }
+      sub(db.collection("bookings").where("driverEmail", "==", ME.email), function (snap) {
+        assignedBucket = snap.docs.map(function (d) { var x = d.data(); x.id = d.id; return x; });
+        DRIVER_QUERY_OK = true;
+        mergeBuckets();
+      });
       sub(db.collection("bookings").where("userEmail", "==", ME.email), function (snap) {
-        var own = snap.docs.map(function (d) { var x = d.data(); x.id = d.id; return x; });
-        var ids = {}; BOOKINGS.forEach(function (b) { ids[b.id] = 1; });
-        own.forEach(function (b) { if (!ids[b.id]) BOOKINGS.push(b); });
+        ownBucket = snap.docs.map(function (d) { var x = d.data(); x.id = d.id; return x; });
+        mergeBuckets();
       });
     } else {
       sub(db.collection("bookings").where("userEmail", "==", ME.email), applyBookings);
@@ -514,6 +527,8 @@
         }, function (e) { throw friendly(e); });
     },
     update: function (id, patch, logText) {
+      if (patch && patch.driverEmail) patch.driverEmail = norm(patch.driverEmail);
+      if (patch && patch.userEmail) patch.userEmail = norm(patch.userEmail);
       var b = BOOKINGS.find(function (x) { return x.id === id; });
       if (b) { Object.assign(b, patch); if (logText) { b.log = (b.log || []).concat([{ t: Date.now(), text: logText }]); } }
       var data = Object.assign({}, patch);
@@ -791,6 +806,26 @@
     onChange: function (fn) { changeHandlers.push(fn); },
     bootstrapped: function () { return BOOTSTRAPPED; },
     paymentsReady: function () { return PAYMENTS_OK; },
+    driverQueryOk: function () { return DRIVER_QUERY_OK; },
+    // Straight HTTPS fetch, bypassing the realtime channel. Used by the
+    // driver console's "Reload from server" button and as a safety net.
+    fetchMyRides: function () {
+      if (!ME) return Promise.resolve({ error: "not signed in", rides: [] });
+      return Promise.all([
+        restWhere("bookings", "driverEmail", ME.email).catch(function (e) { return { __err: friendly(e) }; }),
+        restWhere("bookings", "userEmail", ME.email).catch(function () { return []; })
+      ]).then(function (res) {
+        if (res[0] && res[0].__err) return { error: res[0].__err, rides: [] };
+        var seen = {}, out = [];
+        res[0].concat(Array.isArray(res[1]) ? res[1] : []).forEach(function (b) {
+          b.id = b.id || b.__docId;
+          if (!seen[b.id]) { seen[b.id] = 1; out.push(b); }
+        });
+        BOOKINGS = out;
+        fireChange();
+        return { error: null, rides: out };
+      });
+    },
     dbError: function () { return DBERROR; },
     sendEmail: sendEmail, notifyNewBooking: notifyNewBooking, notifyAccepted: notifyAccepted, notifyDeclined: notifyDeclined,
     rideBlurb: rideBlurb, telHref: telHref, smsHref: smsHref, driverRideText: driverRideText, serviceLabel: serviceLabel,
