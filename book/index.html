@@ -72,12 +72,8 @@
       </div>
 
       <div class="card">
-        <h2 style="margin:0;font:700 15px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.45 0.02 250);">3 · Service &amp; vehicle</h2>
-        <div style="display:flex;flex-direction:column;gap:7px;">
-          <label class="lbl">Type of service</label>
-          <select id="service" class="inp"></select>
-        </div>
-        <div id="vehicles" class="grid3" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;"></div>
+        <h2 style="margin:0;font:700 15px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.45 0.02 250);">3 · Type of service</h2>
+        <div id="services" class="grid3" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;"></div>
         <div id="addOns" style="display:flex;flex-direction:column;gap:10px;"></div>
         <div style="display:flex;flex-direction:column;gap:7px;">
           <label class="lbl">Passengers riding along</label>
@@ -163,14 +159,7 @@ facTel.textContent = CONFIG.PHONE_DISPLAY; facTel.href = 'tel:' + CONFIG.PHONE_T
 
 var S = { tripType:"oneway", vehicle:"sedan", service:"ambulatory", addOns:{wait:false,assist:false,afterHours:false}, miles:12, coords:{pickup:null,dropoff:null}, autoMiles:null };
 
-var svcSel = document.getElementById('service');
-svcSel.innerHTML = (CONFIG.SERVICE_TYPES||[]).map(function(t){ return '<option value="'+t.id+'">'+t.label+'</option>'; }).join('');
-svcSel.onchange = function(){
-  S.service = this.value;
-  var t = (CONFIG.SERVICE_TYPES||[]).find(function(x){ return x.id === S.service; });
-  if (t && t.vehicle) S.vehicle = t.vehicle;
-  render();
-};
+
 
 // pull draft from home widget
 try {
@@ -200,18 +189,17 @@ var TT = [
   { id:"oneway", label:"One way", note:"Drop-off only" },
   { id:"round",  label:"Round trip", note:"Same driver both ways" }
 ];
-var VH = [
-  { id:"sedan", label:"Sedan", note:"Ambulatory, up to 3" },
-  { id:"suv",   label:"SUV", note:"Extra room, walker fits" },
-  { id:"wav",   label:"Wheelchair van", note:"Ramp + securement" }
-];
+var SVC = (CONFIG.SERVICE_TYPES || []);
+function rateNote(v){
+  var base = CONFIG.BASE[v] || 0, pm = CONFIG.PER_MILE[v] || 0;
+  return (base ? ISV.money(base) + " base + " : "") + ISV.money(pm) + "/mi";
+}
 var AO = [
   { id:"wait",       label:"Driver waits at the appointment",  price: CONFIG.ADDON_WAIT },
   { id:"assist",     label:"Door-through-door assistance",     price: CONFIG.ADDON_ASSIST },
   { id:"afterHours", label:"Pickup before 6am or after 8pm",   price: CONFIG.ADDON_AFTERHOURS }
 ];
 
-function feeNote(v){ var f = CONFIG.VEHICLE_FEE[v]||0; return f ? "+$"+f : "Included"; }
 
 function render(){
   document.getElementById('tripTypes').innerHTML = TT.map(function(t){
@@ -219,13 +207,12 @@ function render(){
       '<span style="font:600 16px/1.2 Figtree,sans-serif;color:oklch(0.30 0.02 250);">'+t.label+'</span>'+
       '<span style="font:400 13px/1.45 Figtree,sans-serif;color:oklch(0.55 0.015 250);">'+t.note+'</span><div class="ring"></div></div>';
   }).join('');
-  document.getElementById('vehicles').innerHTML = VH.map(function(v){
-    return '<div class="selbox'+(S.vehicle===v.id?' on':'')+'" data-vh="'+v.id+'" style="padding:16px;gap:6px;">'+
-      '<span style="font:600 15px/1.2 Figtree,sans-serif;color:oklch(0.30 0.02 250);">'+v.label+'</span>'+
-      '<span style="font:400 12px/1.4 Figtree,sans-serif;color:oklch(0.55 0.015 250);">'+v.note+'</span>'+
-      '<span style="font:600 12px/1 Figtree,sans-serif;color:oklch(0.55 0.115 238);">'+feeNote(v.id)+'</span><div class="ring"></div></div>';
+  document.getElementById('services').innerHTML = SVC.map(function(t){
+    return '<div class="selbox'+(S.service===t.id?' on':'')+'" data-svc="'+t.id+'" style="padding:16px;gap:6px;">'+
+      '<span style="font:600 15px/1.2 Figtree,sans-serif;color:oklch(0.30 0.02 250);">'+t.label+'</span>'+
+      '<span style="font:400 12px/1.4 Figtree,sans-serif;color:oklch(0.55 0.015 250);">'+(t.note||'')+'</span>'+
+      '<span style="font:600 12px/1 Figtree,sans-serif;color:oklch(0.55 0.115 238);">'+rateNote(t.vehicle)+'</span><div class="ring"></div></div>';
   }).join('');
-  svcSel.value = S.service;
   document.getElementById('addOns').innerHTML = AO.map(function(a){
     var on = S.addOns[a.id];
     return '<div data-ao="'+a.id+'" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 16px;border:1px solid oklch(0.93 0.012 250);border-radius:10px;background:oklch(0.99 0.004 250);">'+
@@ -236,7 +223,12 @@ function render(){
       '<span style="font:600 14px/1 Figtree,sans-serif;color:oklch(0.55 0.015 250);">+$'+a.price+'</span></div>';
   }).join('');
   document.querySelectorAll('[data-tt]').forEach(function(el){ el.onclick=function(){ S.tripType=this.getAttribute('data-tt'); render(); }; });
-  document.querySelectorAll('[data-vh]').forEach(function(el){ el.onclick=function(){ S.vehicle=this.getAttribute('data-vh'); render(); }; });
+  document.querySelectorAll('[data-svc]').forEach(function(el){ el.onclick=function(){
+    S.service = this.getAttribute('data-svc');
+    var t = SVC.find(function(x){ return x.id === S.service; });
+    if (t && t.vehicle) S.vehicle = t.vehicle;
+    render();
+  }; });
   document.querySelectorAll('[data-ao]').forEach(function(el){ el.onclick=function(){ var k=this.getAttribute('data-ao'); S.addOns[k]=!S.addOns[k]; render(); }; });
   calc();
 }
@@ -360,6 +352,24 @@ function routeMiles(){
       calc();
     });
 }
+function cleanLabel(x, typed){
+  var a = x.address || {};
+  var road = a.road || a.pedestrian || "";
+  var num = a.house_number || "";
+  if (!num && road){ var mnum = String(typed).match(/^\s*(\d+)/); if (mnum) num = mnum[1]; }
+  var city = a.city || a.town || a.village || a.hamlet || "";
+  var state = a.state_code || (a.state === "California" ? "CA" : (a.state || ""));
+  var addr1 = (num ? num + " " : "") + road;
+  var line1 = (x.name && x.category !== "highway" && x.category !== "place")
+    ? x.name + (addr1 ? ", " + addr1 : "")
+    : addr1;
+  if (!line1) line1 = x.name || (x.display_name || "").split(",")[0];
+  var parts = [line1, city, state].filter(Boolean);
+  var label = parts.join(", ");
+  if (a.postcode) label += " " + a.postcode;
+  return label;
+}
+
 function wireAddress(which){
   var input = document.getElementById(which);
   var sug = document.getElementById(which + 'Sug');
@@ -383,22 +393,6 @@ function wireAddress(which){
         .then(function(list){
           if (mine !== reqId) return;
           if (!list || !list.length){ note('No match yet. Keep typing, or just type the address manually.'); return; }
-          function cleanLabel(x, typed){
-            var a = x.address || {};
-            var road = a.road || a.pedestrian || "";
-            var num = a.house_number || "";
-            if (!num && road){ var mnum = String(typed).match(/^\s*(\d+)/); if (mnum) num = mnum[1]; }
-            var city = a.city || a.town || a.village || a.hamlet || "";
-            var addr1 = (num ? num + " " : "") + road;
-            var line1 = (x.name && x.category !== "highway" && x.category !== "place")
-              ? x.name + (addr1 ? ", " + addr1 : "")
-              : addr1;
-            if (!line1) line1 = x.name || (x.display_name || "").split(",")[0];
-            var parts = [line1, city, "CA"].filter(Boolean);
-            var label = parts.join(", ");
-            if (a.postcode) label += " " + a.postcode;
-            return label;
-          }
           sug.innerHTML = list.map(function(x, i){
             return '<div data-i="'+i+'">'+ISV.esc(cleanLabel(x, input.value))+'</div>';
           }).join('');
@@ -419,6 +413,30 @@ function wireAddress(which){
   });
   document.addEventListener('click', function(e){
     if (!sug.contains(e.target) && e.target !== input) sug.style.display = "none";
+  });
+
+  // If they typed an address but never picked from the list, resolve it for them
+  // so the route still measures and the estimate is real.
+  input.addEventListener('blur', function(){
+    setTimeout(function(){
+      var q = input.value.trim();
+      if (!q || q.length < 4 || S.coords[which]) return;
+      note('Finding that address...');
+      var base = 'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=us&addressdetails=1&q=';
+      fetch(base + encodeURIComponent(q) + '&viewbox=-119.5,35.6,-115.4,32.5&bounded=0')
+        .then(function(r){ return r.json(); })
+        .then(function(list){ return (list && list.length) ? list : fetch(base + encodeURIComponent(q)).then(function(r){ return r.json(); }); })
+        .then(function(list){
+          if (!list || !list.length || S.coords[which]) { sug.style.display = "none"; return; }
+          var x = list[0];
+          input.value = cleanLabel(x, q);
+          S.coords[which] = { lat: +x.lat, lon: +x.lon };
+          sug.style.display = "none";
+          setMarker(which, +x.lat, +x.lon, which === 'pickup' ? 'Pickup' : 'Destination');
+          routeMiles();
+        })
+        .catch(function(){ sug.style.display = "none"; });
+    }, 220); // let a dropdown click land first
   });
 }
 wireAddress('pickup');

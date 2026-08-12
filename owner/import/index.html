@@ -162,7 +162,7 @@ function mapStatus(raw){
 function mapMobility(raw){
   var s = String(raw || "").toLowerCase();
   if (/wheelchair|wav|\bwc\b/.test(s)) return { vehicle:"wav", service:"wheelchair" };
-  if (/stretcher|gurney/.test(s))        return { vehicle:"wav", service:"other" };
+  if (/stretcher|gurney/.test(s))        return { vehicle:"stretcher", service:"stretcher" };
   if (/\bamb\b|ambulatory/.test(s))     return { vehicle:"sedan", service:"ambulatory" };
   if (/suv|van/.test(s))                 return { vehicle:"suv", service:"ambulatory" };
   return { vehicle:"sedan", service:"ambulatory" };

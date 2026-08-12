@@ -62,7 +62,7 @@ function editForm(b){
       '<div style="display:flex;flex-direction:column;gap:7px;"><label class="lbl">Trip type</label>'+
       '<select id="eTrip" class="inp"><option value="oneway"'+(b.tripType!=="round"?" selected":"")+'>One way</option><option value="round"'+(b.tripType==="round"?" selected":"")+'>Round trip</option></select></div>'+
       '<div style="display:flex;flex-direction:column;gap:7px;"><label class="lbl">Vehicle</label>'+
-      '<select id="eVehicle" class="inp"><option value="sedan"'+(b.vehicle==="sedan"?" selected":"")+'>Sedan</option><option value="suv"'+(b.vehicle==="suv"?" selected":"")+'>SUV</option><option value="wav"'+(b.vehicle==="wav"?" selected":"")+'>Wheelchair van</option></select></div>'+
+      '<select id="eVehicle" class="inp"><option value="sedan"'+(b.vehicle==="sedan"?" selected":"")+'>Sedan (ambulatory)</option><option value="wav"'+(b.vehicle==="wav"?" selected":"")+'>Wheelchair van</option><option value="stretcher"'+(b.vehicle==="stretcher"?" selected":"")+'>Stretcher / gurney</option></select></div>'+
       '<div style="display:flex;flex-direction:column;gap:7px;"><label class="lbl">Type of service</label>'+
       '<select id="eService" class="inp">'+(CONFIG.SERVICE_TYPES||[]).map(function(t){ return '<option value="'+t.id+'"'+(b.service===t.id?" selected":"")+'>'+t.label+'</option>'; }).join('')+'</select></div>'+
       '<div style="display:flex;flex-direction:column;gap:7px;"><label class="lbl">Riding along</label>'+
@@ -237,6 +237,11 @@ function render(){
       var f2 = readEditForm();
       var calc = ISV.fare(f2); // miles in the form are the trip total
       document.getElementById('eFare').value = calc.total.toFixed(2);
+    };
+    var eSvc = document.getElementById('eService');
+    if (eSvc) eSvc.onchange = function(){
+      var t = (CONFIG.SERVICE_TYPES||[]).find(function(x){ return x.id === this.value; }, this) || (CONFIG.SERVICE_TYPES||[]).find(function(x){ return x.id === eSvc.value; });
+      if (t && t.vehicle) document.getElementById('eVehicle').value = t.vehicle;
     };
     document.getElementById('eSave').onclick = function(){
       var f2 = readEditForm();

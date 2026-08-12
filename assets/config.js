@@ -27,34 +27,33 @@ window.CONFIG = {
   NOTIFY_EMAIL: "DFlanagan@IServedTransport.com",
 
   // ---------------- PRICING ----------------
-  // Matches the published rate card:
-  //   Standard / Dialysis-Chemo:  $15.00 base, 10 free miles included
-  //   Wheelchair transport:       $25.00 base, 10 free miles included
-  //   Airport:                    quote by phone (base shown, call for specials)
-  // Miles beyond the free 10 bill at the per-mile rate below.
-  FREE_MILES: 10,
-  BASE: { sedan: 15, suv: 15, wav: 25 },
-  PER_MILE: { sedan: 2.50, suv: 2.50, wav: 3.50 },
-  ROUND_TRIP_MULTIPLIER: 2,   // round trip = both legs billed
+  // Three service tiers. Fare = base + (miles x per-mile rate).
+  //   Ambulatory (sedan):  no base fare, $1.50 per mile
+  //   Wheelchair (van):    $25.00 base,  $2.50 per mile
+  //   Stretcher (gurney):  $125.00 base, $3.50 per mile
+  // Round trips bill both legs (base x2 and all miles counted).
+  FREE_MILES: 0,
+  BASE:     { sedan: 0,    wav: 25,   stretcher: 125 },
+  PER_MILE: { sedan: 1.50, wav: 2.50, stretcher: 3.50 },
+  ROUND_TRIP_MULTIPLIER: 2,
 
-  // Wait time: first hour free, then per additional 30 min (max 1 extra hour)
+  // Wait time: first hour free, then per additional 30 min
   WAIT_FREE_MINUTES: 60,
   WAIT_PER_30MIN: 15,
 
   // Cancellation
   LATE_CANCEL_FEE: 20,
 
-  // Add-ons (kept optional; set to 0 to hide from pricing)
+  // Optional add-ons (0 = hidden from the estimate)
   ADDON_ASSIST: 0,
   ADDON_AFTERHOURS: 0,
 
   // ---------------- SERVICE TYPES ----------------
+  // What the customer picks when booking. Each one maps to a price tier.
   SERVICE_TYPES: [
-    { id: "ambulatory", label: "Ambulatory transportation (sedan)", vehicle: "sedan" },
-    { id: "wheelchair", label: "Wheelchair-accessible transportation", vehicle: "wav" },
-    { id: "dialysis",   label: "Dialysis / chemo / recurring treatment", vehicle: "sedan" },
-    { id: "airport",    label: "Airport transportation", vehicle: "sedan" },
-    { id: "other",      label: "Other", vehicle: "sedan" }
+    { id: "ambulatory", label: "Ambulatory (sedan)",              vehicle: "sedan",     note: "Walks with little or no help" },
+    { id: "wheelchair", label: "Wheelchair-accessible van",       vehicle: "wav",       note: "Ramp and securement" },
+    { id: "stretcher",  label: "Stretcher / gurney transport",    vehicle: "stretcher", note: "Lying down, two attendants" }
   ],
 
   // ---------------- CHECKOUT / PROMO ----------------

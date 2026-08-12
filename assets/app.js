@@ -534,13 +534,9 @@
     var assist = a.assist ? (C.ADDON_ASSIST || 0) : 0;
     var after = a.afterHours ? (C.ADDON_AFTERHOURS || 0) : 0;
     var rows = [];
-    rows.push({ label: (legs > 1 ? "Base fare x2 (round trip)" : "Base fare") + " - " + vehicleShort(vehicle), amount: money(baseTotal) });
-    if (billable > 0) {
-      rows.push({ label: "First " + free + " miles", amount: "included" });
-      rows.push({ label: (Math.round(billable * 10) / 10) + " mi over x " + money(perMile), amount: money(mileage) });
-    } else {
-      rows.push({ label: totalMiles + " mi total, within the first " + free + " miles", amount: "included" });
-    }
+    if (baseTotal > 0) rows.push({ label: (legs > 1 ? "Base fare x2 (round trip)" : "Base fare") + " - " + vehicleShort(vehicle), amount: money(baseTotal) });
+    if (free > 0 && billable > 0) rows.push({ label: "First " + free + " miles", amount: "included" });
+    rows.push({ label: totalMiles + " mi x " + money(perMile) + "/mi", amount: money(mileage) });
     if (assist) rows.push({ label: "Door-through-door assist", amount: money(assist) });
     if (after) rows.push({ label: "Before 6am / after 8pm", amount: money(after) });
     if (a.wait) rows.push({ label: "First hour of wait time", amount: "free" });
@@ -554,8 +550,8 @@
     var t = (C.SERVICE_TYPES || []).find(function (x) { return x.id === id; });
     return t ? t.label : "";
   }
-  function vehicleName(v) { return v === "wav" ? "Wheelchair-accessible van" : v === "suv" ? "SUV" : "Sedan"; }
-  function vehicleShort(v) { return v === "wav" ? "Wheelchair van" : v === "suv" ? "SUV" : "Sedan"; }
+  function vehicleName(v) { return v === "wav" ? "Wheelchair-accessible van" : v === "stretcher" ? "Stretcher / gurney vehicle" : v === "suv" ? "SUV" : "Sedan"; }
+  function vehicleShort(v) { return v === "wav" ? "Wheelchair van" : v === "stretcher" ? "Stretcher" : v === "suv" ? "SUV" : "Sedan"; }
 
   /* ---------------- shared UI (design language) ---------------- */
   function logo(sz, dark, sub) {
