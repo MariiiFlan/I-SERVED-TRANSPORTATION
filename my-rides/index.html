@@ -51,6 +51,9 @@ if (me){
       '<span style="font:600 15px/1 Figtree,sans-serif;color:oklch(0.50 0.115 238);">'+ISV.money(b.fare)+' est.</span></div>'+
       '<div style="font:500 15px/1.5 Figtree,sans-serif;color:oklch(0.35 0.02 250);">'+ISV.mapLink(b.pickup)+' <span style="color:oklch(0.60 0.015 250);">-&gt;</span> '+ISV.mapLink(b.dropoff)+'</div>'+
       '<div style="font:400 13px/1.5 Figtree,sans-serif;color:oklch(0.55 0.015 250);">'+(ISV.serviceLabel(b.service) || ISV.vehicleShort(b.vehicle))+' - '+ISV.tripLine(b)+' - Request '+b.id+'</div>'+
+      (b.status === "Pending" ? '<div style="font:500 13px/1.5 Figtree,sans-serif;color:oklch(0.48 0.13 45);">Waiting on dispatch to confirm this request.</div>' : '')+
+      (b.status === "Completed" && !b.clientPaidOn ? '<div style="font:500 13px/1.5 Figtree,sans-serif;color:oklch(0.48 0.10 72);">Payment due - '+ISV.money(b.fare)+'. Call '+CONFIG.PHONE_DISPLAY+' to settle up.</div>' : '')+
+      (b.clientPaidOn ? '<div style="font:500 13px/1.5 Figtree,sans-serif;color:oklch(0.40 0.10 160);">Paid - thank you.</div>' : '')+
       '<div><button class="btn2" data-rebook="'+b.id+'" style="padding:10px 16px;font-size:13.5px;">Book this route again</button></div>'+
       '</div>';
   }

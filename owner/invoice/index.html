@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Invoice — I Served Transportation</title>
+<link rel="icon" href="../../favicon.ico" sizes="any">
+<link rel="stylesheet" href="../../assets/base.css">
+<style>
+  body { background: oklch(0.975 0.006 250); }
+  .sheet { max-width: 820px; margin: 0 auto; background: #fff; padding: 48px 52px; border-radius: 14px; border: 1px solid oklch(0.92 0.012 250); }
+  .bar { max-width: 820px; margin: 0 auto 18px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  @media print {
+    body { background: #fff; }
+    .bar, .noprint { display: none !important; }
+    .sheet { border: 0; border-radius: 0; padding: 0; max-width: none; }
+    @page { margin: 16mm; }
+  }
+</style>
+</head>
+<body>
+
+<div style="padding:26px 18px 60px;">
+  <div class="bar">
+    <a class="btn2" href="../pay/" style="display:inline-block;padding:11px 16px;font-size:14px;">&larr; Driver pay</a>
+    <button class="btn" id="printBtn" style="padding:12px 20px;font-size:14px;">Print / Save as PDF</button>
+    <button class="btn2" id="emailBtn" style="padding:12px 18px;font-size:14px;">Email to driver</button>
+    <button class="btn2" id="textBtn" style="padding:12px 18px;font-size:14px;">Text the driver</button>
+    <button class="btn2" id="copyBtn" style="padding:12px 18px;font-size:14px;">Copy details</button>
+    <span id="barMsg" style="font:500 13.5px/1.4 Figtree,sans-serif;color:oklch(0.42 0.10 160);"></span>
+  </div>
+
+  <div class="sheet" id="sheet"></div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+<script src="../../assets/config.js"></script>
+<script src="../../assets/app.js"></script>
+<script>
+ISV.root = "../../";
+ISV.ready(function(){
+var me = ISV.auth.require("owner", "/owner/pay/");
+if (!me) return;
+
+var qs = new URLSearchParams(location.search);
+var email = (qs.get('driver') || "").toLowerCase();
+var payId = qs.get('payment');
+
+var driver = ISV.auth.drivers().find(function(d){ return d.email === email; }) || { name: email, email: email };
+var rec = ISV.auth.payments(email).find(function(p){ return p.id === payId; });
+
+if (!rec){
+  document.getElementById('sheet').innerHTML = '<p style="font:400 16px/1.6 Figtree,sans-serif;">Invoice not found. <a href="../pay/">Back to driver pay</a></p>';
+  return;
+}
+
+var rides = (rec.rideIds || []).map(function(id){ return ISV.book.byId(id); }).filter(Boolean);
+var share = Math.round((CONFIG.DRIVER_SHARE || 0.6) * 100);
+
+function row(label, value){
+  return '<div style="display:flex;flex-direction:column;gap:2px;">'+
+    '<span style="font:600 10.5px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.58 0.015 250);">'+label+'</span>'+
+    '<span style="font:500 14.5px/1.5 Figtree,sans-serif;color:oklch(0.28 0.02 250);">'+value+'</span></div>';
+}
+
+document.getElementById('sheet').innerHTML =
+  '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:28px;flex-wrap:wrap;padding-bottom:26px;border-bottom:2px solid oklch(0.30 0.04 245);">'+
+    '<div style="display:flex;flex-direction:column;gap:12px;">'+
+      ISV.logo(34)+
+      '<span style="font:400 13px/1.6 Figtree,sans-serif;color:oklch(0.52 0.015 250);">'+
+        CONFIG.COMPANY+'<br>'+CONFIG.AREA+'<br>'+CONFIG.PHONE_DISPLAY+'<br>'+CONFIG.EMAIL+'</span>'+
+    '</div>'+
+    '<div style="text-align:right;display:flex;flex-direction:column;gap:6px;">'+
+      '<span style="font:700 36px/1 \'Barlow Condensed\',sans-serif;text-transform:uppercase;letter-spacing:0.02em;color:oklch(0.28 0.02 250);">Invoice</span>'+
+      '<span style="font:600 14px/1.5 Figtree,sans-serif;color:oklch(0.45 0.06 240);">'+rec.id+'</span>'+
+      '<span style="font:400 13px/1.5 Figtree,sans-serif;color:oklch(0.55 0.015 250);">Date '+ISV.fmtDate(rec.date)+', '+(rec.date||'').slice(0,4)+'</span>'+
+      '<span style="padding:5px 12px;border-radius:999px;font:700 11px/1 Figtree,sans-serif;text-transform:uppercase;letter-spacing:0.08em;'+
+        (rec.status === "paid"
+          ? 'background:oklch(0.94 0.05 160);color:oklch(0.38 0.10 160);">Paid'
+          : 'background:oklch(0.96 0.03 85);color:oklch(0.48 0.10 72);">Payment pending')+'</span>'+
+    '</div>'+
+  '</div>'+
+
+  '<div style="display:grid;grid-template-columns:1fr 1fr;gap:26px;padding:26px 0;">'+
+    '<div style="display:flex;flex-direction:column;gap:12px;">'+
+      row('Pay to', ISV.esc(driver.name))+
+      (driver.email ? row('Email', ISV.esc(driver.email)) : '')+
+      (driver.phone ? row('Phone', ISV.esc(driver.phone)) : '')+
+    '</div>'+
+    '<div style="display:flex;flex-direction:column;gap:12px;">'+
+      row('For', share + '% driver share of completed rides')+
+      row('Rides', rides.length + (rides.length===1?' ride':' rides'))+
+      row('Method', ISV.esc(rec.method || '-'))+
+      (rec.note ? row('Note', ISV.esc(rec.note)) : '')+
+    '</div>'+
+  '</div>'+
+
+  '<table style="width:100%;border-collapse:collapse;margin-top:6px;">'+
+    '<thead><tr>'+
+      ['Date','Passenger','Trip','Ride','Fare','Driver '+share+'%'].map(function(h,i){
+        return '<th style="text-align:'+(i>=4?'right':'left')+';padding:10px 8px;font:600 10.5px/1 Barlow,sans-serif;letter-spacing:0.13em;text-transform:uppercase;color:oklch(0.55 0.015 250);border-bottom:1px solid oklch(0.88 0.02 250);">'+h+'</th>';
+      }).join('')+
+    '</tr></thead><tbody>'+
+    (rides.length ? rides.map(function(b){
+      return '<tr>'+
+        '<td style="padding:11px 8px;font:400 13px/1.5 Figtree,sans-serif;border-bottom:1px solid oklch(0.95 0.008 250);white-space:nowrap;">'+ISV.fmtDate(b.date)+'</td>'+
+        '<td style="padding:11px 8px;font:500 13px/1.5 Figtree,sans-serif;border-bottom:1px solid oklch(0.95 0.008 250);">'+ISV.esc(b.name)+'</td>'+
+        '<td style="padding:11px 8px;font:400 12.5px/1.5 Figtree,sans-serif;color:oklch(0.50 0.015 250);border-bottom:1px solid oklch(0.95 0.008 250);">'+ISV.esc(b.pickup)+' &rarr; '+ISV.esc(b.dropoff)+'</td>'+
+        '<td style="padding:11px 8px;font:400 12px/1.5 Figtree,sans-serif;color:oklch(0.55 0.015 250);border-bottom:1px solid oklch(0.95 0.008 250);white-space:nowrap;">'+b.id+'</td>'+
+        '<td style="padding:11px 8px;font:400 13px/1.5 Figtree,sans-serif;text-align:right;border-bottom:1px solid oklch(0.95 0.008 250);white-space:nowrap;">'+ISV.money(b.fare)+'</td>'+
+        '<td style="padding:11px 8px;font:700 13.5px/1.5 Figtree,sans-serif;text-align:right;border-bottom:1px solid oklch(0.95 0.008 250);white-space:nowrap;">'+ISV.money(ISV.book.driverCut(b))+'</td>'+
+      '</tr>';
+    }).join('') : '<tr><td colspan="6" style="padding:18px 8px;font:400 13px/1.6 Figtree,sans-serif;color:oklch(0.55 0.015 250);">Ride details are no longer available, but the amount below is what was invoiced.</td></tr>')+
+    '</tbody></table>'+
+
+  '<div style="display:flex;justify-content:flex-end;padding-top:22px;">'+
+    '<div style="min-width:280px;display:flex;flex-direction:column;gap:10px;">'+
+      '<div style="display:flex;align-items:baseline;justify-content:space-between;gap:20px;padding:16px 18px;border-radius:11px;background:oklch(0.96 0.018 237);">'+
+        '<span style="font:700 15px/1.3 Figtree,sans-serif;color:oklch(0.32 0.03 245);">Total due</span>'+
+        '<span style="font:700 30px/1 \'Barlow Condensed\',sans-serif;color:oklch(0.30 0.04 245);">'+ISV.money(rec.amount)+'</span>'+
+      '</div>'+
+    '</div>'+
+  '</div>'+
+
+  '<div style="padding-top:30px;margin-top:26px;border-top:1px solid oklch(0.93 0.012 250);font:400 12.5px/1.7 Figtree,sans-serif;color:oklch(0.58 0.015 250);">'+
+    'Driver pay is calculated at '+share+'% of the fare on each completed ride. Questions about this invoice? Call '+CONFIG.PHONE_DISPLAY+'.'+
+    (rec.by ? '<br>Prepared by '+ISV.esc(rec.by)+'.' : '')+
+  '</div>';
+
+/* ---- actions ---- */
+function plainText(){
+  return [
+    CONFIG.COMPANY + " - driver pay invoice " + rec.id,
+    "For: " + driver.name,
+    "Date: " + ISV.fmtDate(rec.date),
+    share + "% of " + rides.length + " completed ride" + (rides.length===1?"":"s"),
+    ""
+  ].concat(rides.map(function(b){
+    return ISV.fmtDate(b.date) + "  " + b.name + "  (" + b.id + ")  fare " + ISV.money(b.fare) + "  ->  " + ISV.money(ISV.book.driverCut(b));
+  })).concat(["", "TOTAL DUE: " + ISV.money(rec.amount), rec.method ? "Method: " + rec.method : ""]).filter(Boolean).join("\n");
+}
+
+document.getElementById('printBtn').onclick = function(){ window.print(); };
+
+document.getElementById('emailBtn').onclick = function(){
+  location.href = "mailto:" + encodeURIComponent(driver.email || "") +
+    "?subject=" + encodeURIComponent(CONFIG.COMPANY + " - driver pay " + rec.id) +
+    "&body=" + encodeURIComponent(plainText());
+};
+
+document.getElementById('textBtn').onclick = function(){
+  if (!driver.phone){ msg("No mobile number saved for this driver.", true); return; }
+  location.href = ISV.smsHref(driver.phone,
+    (driver.name ? driver.name.split(" ")[0] + ", " : "") + "your pay for " + rides.length + " ride" + (rides.length===1?"":"s") +
+    " is " + ISV.money(rec.amount) + " (invoice " + rec.id + ").");
+};
+
+document.getElementById('copyBtn').onclick = function(){
+  var t = plainText();
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(t).then(function(){ msg("Copied. Paste it anywhere, including Invoice Simple."); },
+                                         function(){ msg("Couldn't copy automatically.", true); });
+  } else msg("Copying isn't supported in this browser.", true);
+};
+
+function msg(text, bad){
+  var el = document.getElementById('barMsg');
+  el.textContent = text;
+  el.style.color = bad ? "oklch(0.50 0.15 25)" : "oklch(0.42 0.10 160)";
+  setTimeout(function(){ el.textContent = ""; }, 4000);
+}
+});
+</script>
+</body>
+</html>

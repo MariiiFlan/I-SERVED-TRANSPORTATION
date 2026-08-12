@@ -22,10 +22,15 @@
       <span id="shareNote" style="font:500 14px/1.5 Figtree,sans-serif;color:oklch(0.52 0.015 250);"></span>
     </div>
 
-    <div class="grid3" style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;">
-      <div class="statcard"><span class="k">Owed right now</span><span class="v" id="stOwed">$0</span><span class="s">Completed rides not yet paid</span></div>
+    <div class="grid4" style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;">
+      <div class="statcard"><span class="k">Not invoiced yet</span><span class="v" id="stOwed">$0</span><span class="s">Completed rides with no invoice</span></div>
+      <div class="statcard"><span class="k">Invoiced, awaiting payment</span><span class="v" id="stInvoiced">$0</span><span class="s">Sent but not confirmed paid</span></div>
       <div class="statcard"><span class="k">Paid all time</span><span class="v" id="stPaid">$0</span><span class="s">Across every driver</span></div>
       <div class="statcard"><span class="k">Company keeps</span><span class="v" id="stCompany">$0</span><span class="s">After driver shares, completed rides</span></div>
+    </div>
+
+    <div id="rulesNote" style="display:none;padding:16px 20px;border-radius:12px;border:1px solid oklch(0.90 0.04 80);background:oklch(0.98 0.02 85);font:500 14.5px/1.65 Figtree,sans-serif;color:oklch(0.45 0.10 70);">
+      Payment history can't load yet. Open <b>firestore.rules</b> from your site folder, copy all of it, and paste it into Firebase &rarr; Firestore Database &rarr; Rules &rarr; Publish. Earnings still calculate correctly below.
     </div>
 
     <div id="drivers" style="display:flex;flex-direction:column;gap:18px;"></div>
@@ -69,10 +74,10 @@
     </div>
 
     <div style="display:flex;flex-direction:column;gap:10px;">
-      <button class="btn" id="payInvoice" style="padding:15px;">Open in Invoice Simple &amp; record payment</button>
-      <button class="btn2" id="payRecordOnly" style="padding:14px;">Just record the payment</button>
+      <button class="btn" id="payInvoice" style="padding:15px;">Create invoice</button>
+      <button class="btn2" id="payRecordOnly" style="padding:14px;">Record as already paid</button>
       <span id="payMsg" class="err"></span>
-      <span style="font:400 12.5px/1.6 Figtree,sans-serif;color:oklch(0.58 0.015 250);">On a phone this opens the Invoice Simple app with the driver's details copied to your clipboard. On a computer it opens Invoice Simple in a browser tab. Either way the payment is recorded here.</span>
+      <span style="font:400 12.5px/1.6 Figtree,sans-serif;color:oklch(0.58 0.015 250);">"Create invoice" builds a real invoice you can print, save as PDF, email, or text - it does NOT mark anything paid. It stays in Payment history where you can resend it any time, and mark it paid once the money actually goes out.</span>
     </div>
   </div>
 </div>
@@ -116,12 +121,13 @@ var CURRENT = null;  // driver being paid
 function isoToday(){ return new Date().toISOString().slice(0,10); }
 
 function render(){
+  document.getElementById('rulesNote').style.display = ISV.paymentsReady() ? "none" : "block";
   var drivers = ISV.auth.drivers();
-  var totalOwed = 0, totalPaid = 0, gross = 0;
+  var totalOwed = 0, totalInvoiced = 0, totalPaid = 0, gross = 0;
 
   document.getElementById('drivers').innerHTML = drivers.map(function(d){
     var e = ISV.book.earnings(d.email);
-    totalOwed += e.owed; totalPaid += e.paidTotal;
+    totalOwed += e.unbilledTotal; totalInvoiced += e.invoicedTotal; totalPaid += e.paidTotal;
     gross += e.rides.reduce(function(s,b){ return s + (b.fare||0); }, 0);
     var last = ISV.auth.payments(d.email)[0];
     return '<div class="card" style="gap:14px;">'+
@@ -135,24 +141,29 @@ function render(){
           '</div></div>'+
         '<div style="display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start;">'+
           '<div style="display:flex;flex-direction:column;gap:3px;">'+
-            '<span style="font:600 10.5px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.58 0.015 250);">Owed</span>'+
-            '<span style="font:700 26px/1 \'Barlow Condensed\',sans-serif;color:'+(e.owed>0?'oklch(0.45 0.12 45)':'oklch(0.30 0.02 250)')+';">'+ISV.money(e.owed)+'</span></div>'+
+            '<span style="font:600 10.5px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.58 0.015 250);">Not invoiced</span>'+
+            '<span style="font:700 26px/1 \'Barlow Condensed\',sans-serif;color:'+(e.unbilledTotal>0?'oklch(0.45 0.12 45)':'oklch(0.30 0.02 250)')+';">'+ISV.money(e.unbilledTotal)+'</span></div>'+
+          (e.invoicedTotal>0 ? '<div style="display:flex;flex-direction:column;gap:3px;">'+
+            '<span style="font:600 10.5px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.58 0.015 250);">Awaiting payment</span>'+
+            '<span style="font:700 26px/1 \'Barlow Condensed\',sans-serif;color:oklch(0.48 0.10 72);">'+ISV.money(e.invoicedTotal)+'</span></div>' : '')+
           '<div style="display:flex;flex-direction:column;gap:3px;">'+
             '<span style="font:600 10.5px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.58 0.015 250);">Paid to date</span>'+
             '<span style="font:700 26px/1 \'Barlow Condensed\',sans-serif;">'+ISV.money(e.paidTotal)+'</span></div>'+
         '</div></div>'+
       '<div style="display:flex;gap:10px;flex-wrap:wrap;">'+
-        (e.owed > 0 ? '<button class="btn" data-pay="'+ISV.esc(d.email)+'" style="padding:12px 20px;font-size:14px;">Pay '+ISV.money(e.owed)+'</button>' : '')+
+        (e.unbilledTotal > 0 ? '<button class="btn" data-pay="'+ISV.esc(d.email)+'" style="padding:12px 20px;font-size:14px;">Create invoice - '+ISV.money(e.unbilledTotal)+'</button>' : '')+
         '<button class="btn2" data-hist="'+ISV.esc(d.email)+'" style="padding:12px 18px;font-size:14px;">Payment history</button>'+
         (d.phone ? '<a class="btn2" style="padding:12px 18px;font-size:14px;display:inline-block;" href="'+ISV.smsHref(d.phone, payTextFor(d, e))+'">Text pay summary</a>' : '')+
       '</div>'+
-      (e.unpaid.length ? '<span style="font:400 13px/1.6 Figtree,sans-serif;color:oklch(0.55 0.015 250);">'+e.unpaid.length+' completed ride'+(e.unpaid.length===1?'':'s')+' awaiting payment.</span>' : '')+
+      (e.unbilled.length ? '<span style="font:400 13px/1.6 Figtree,sans-serif;color:oklch(0.55 0.015 250);">'+e.unbilled.length+' completed ride'+(e.unbilled.length===1?'':'s')+' not on an invoice yet.</span>' : '')+
+      (e.invoiced.length ? '<span style="font:500 13px/1.6 Figtree,sans-serif;color:oklch(0.48 0.10 72);">'+e.invoiced.length+' ride'+(e.invoiced.length===1?'':'s')+' invoiced and waiting on payment - open Payment history to resend or confirm.</span>' : '')+
     '</div>';
   }).join('') || '<div class="card"><span style="font:400 15px/1.6 Figtree,sans-serif;color:oklch(0.55 0.015 250);">No drivers yet. Add one on the <a href="../team/">Team</a> page.</span></div>';
 
   document.getElementById('stOwed').textContent = ISV.money(totalOwed);
+  document.getElementById('stInvoiced').textContent = ISV.money(totalInvoiced);
   document.getElementById('stPaid').textContent = ISV.money(totalPaid);
-  document.getElementById('stCompany').textContent = ISV.money(Math.max(0, gross - (totalOwed + totalPaid)));
+  document.getElementById('stCompany').textContent = ISV.money(Math.max(0, gross - (totalOwed + totalInvoiced + totalPaid)));
 
   document.querySelectorAll('[data-pay]').forEach(function(el){
     el.onclick = function(){ openPay(this.getAttribute('data-pay')); };
@@ -174,7 +185,7 @@ function openPay(email){
   if (!CURRENT) return;
   var e = ISV.book.earnings(email);
   SELECTED = {};
-  e.unpaid.forEach(function(b){ SELECTED[b.id] = true; });
+  e.unbilled.forEach(function(b){ SELECTED[b.id] = true; });
   document.getElementById('payWho').textContent = CURRENT.name;
   document.getElementById('payDate').value = isoToday();
   document.getElementById('payMsg').textContent = "";
@@ -182,7 +193,7 @@ function openPay(email){
   document.getElementById('payModal').style.display = "flex";
 }
 function paintPayRides(e){
-  document.getElementById('payRides').innerHTML = e.unpaid.map(function(b){
+  document.getElementById('payRides').innerHTML = e.unbilled.map(function(b){
     return '<label style="display:flex;align-items:center;gap:12px;padding:9px 6px;border-bottom:1px solid oklch(0.96 0.006 250);cursor:pointer;">'+
       '<input type="checkbox" class="paysel" data-id="'+b.id+'" '+(SELECTED[b.id]?'checked':'')+' style="width:17px;height:17px;accent-color:oklch(0.62 0.115 237);">'+
       '<span style="flex:1;font:500 13.5px/1.45 Figtree,sans-serif;">'+ISV.fmtDate(b.date)+' · '+ISV.esc(b.name)+
@@ -228,68 +239,107 @@ function recordPayment(){
   return rec;
 }
 
-document.getElementById('payRecordOnly').onclick = function(){
-  var rec = recordPayment();
+function buildRecord(status){
+  var rides = selectedRides();
+  if (!rides.length){ document.getElementById('payMsg').textContent = "Pick at least one ride."; return null; }
+  var amount = +(rides.reduce(function(s,b){ return s + ISV.book.driverCut(b); }, 0)).toFixed(2);
+  return {
+    id: "PAY-" + Math.floor(100000 + Math.random()*899999),
+    t: Date.now(),
+    date: document.getElementById('payDate').value || isoToday(),
+    amount: amount,
+    method: document.getElementById('payMethod').value,
+    note: document.getElementById('payNote').value.trim(),
+    rideIds: rides.map(function(b){ return b.id; }),
+    rideCount: rides.length,
+    by: me.name,
+    status: status
+  };
+}
+
+// Creates the invoice. Does NOT mark anything paid.
+document.getElementById('payInvoice').onclick = function(){
+  var rec = buildRecord("sent");
   if (!rec) return;
+  ISV.auth.addPayment(CURRENT.email, rec);
+  ISV.book.markInvoiced(rec.rideIds, rec);
+  document.getElementById('payModal').style.display = "none";
+  location.href = "../invoice/?driver=" + encodeURIComponent(CURRENT.email) + "&payment=" + encodeURIComponent(rec.id);
+};
+
+// For when he already handed over cash and just needs it logged.
+document.getElementById('payRecordOnly').onclick = function(){
+  var rec = buildRecord("paid");
+  if (!rec) return;
+  if (!confirm("Record " + ISV.money(rec.amount) + " to " + CURRENT.name + " as ALREADY PAID?\n\nOnly do this if the money has actually gone out.")) return;
+  rec.confirmedOn = rec.date;
+  ISV.auth.addPayment(CURRENT.email, rec);
+  ISV.book.markInvoiced(rec.rideIds, rec);
+  ISV.book.markPaid(rec.rideIds, rec);
   document.getElementById('payModal').style.display = "none";
   render();
 };
 
-document.getElementById('payInvoice').onclick = function(){
-  var rides = selectedRides();
-  if (!rides.length){ document.getElementById('payMsg').textContent = "Pick at least one ride."; return; }
-  var amount = +(rides.reduce(function(s,b){ return s + ISV.book.driverCut(b); }, 0)).toFixed(2);
-
-  // everything needed to fill the invoice, on the clipboard
-  var lines = [
-    CURRENT.name + (CURRENT.phone ? "  " + CURRENT.phone : ""),
-    CURRENT.email,
-    "",
-    "Driver pay - " + share + "% of " + rides.length + " completed ride" + (rides.length===1?"":"s"),
-    ""
-  ].concat(rides.map(function(b){
-    return ISV.fmtDate(b.date) + "  " + b.name + "  (" + b.id + ")  fare " + ISV.money(b.fare) + "  ->  " + ISV.money(ISV.book.driverCut(b));
-  })).concat(["", "TOTAL DUE: " + ISV.money(amount)]);
-  var text = lines.join("\n");
-
-  function go(){
-    var rec = recordPayment();
-    var isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-    if (isMobile){
-      // try the app, fall back to the web app if it isn't installed
-      var t0 = Date.now();
-      var timer = setTimeout(function(){
-        if (Date.now() - t0 < 2500) window.open("https://app.invoicesimple.com/invoices/new", "_blank");
-      }, 1200);
-      window.location.href = "invoicesimple://";
-      window.addEventListener('pagehide', function(){ clearTimeout(timer); }, { once:true });
-    } else {
-      window.open("https://app.invoicesimple.com/invoices/new", "_blank");
-    }
-    document.getElementById('payModal').style.display = "none";
-    render();
-  }
-
-  if (navigator.clipboard && navigator.clipboard.writeText){
-    navigator.clipboard.writeText(text).then(go, go);
-  } else go();
-};
-
 /* ---------- history modal ---------- */
+var HIST_EMAIL = null;
 function openHist(email){
+  HIST_EMAIL = email;
+  paintHist();
+  document.getElementById('histModal').style.display = "flex";
+}
+function paintHist(){
+  var email = HIST_EMAIL;
   var d = ISV.auth.drivers().find(function(x){ return x.email === email; });
   var list = ISV.auth.payments(email);
   document.getElementById('histWho').textContent = (d ? d.name : email) + " - payment history";
   document.getElementById('histList').innerHTML = list.length ? list.map(function(p){
-    return '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:14px 0;border-bottom:1px solid oklch(0.95 0.008 250);">'+
-      '<div style="display:flex;flex-direction:column;gap:3px;">'+
-        '<span style="font:600 15px/1.3 Figtree,sans-serif;">'+ISV.fmtDate(p.date)+' · '+ISV.esc(p.method)+'</span>'+
-        '<span style="font:400 13px/1.5 Figtree,sans-serif;color:oklch(0.55 0.015 250);">'+p.rideCount+' ride'+(p.rideCount===1?'':'s')+' · '+p.id+(p.by?' · recorded by '+ISV.esc(p.by):'')+'</span>'+
-        (p.note ? '<span style="font:400 13px/1.5 Figtree,sans-serif;color:oklch(0.50 0.015 250);">'+ISV.esc(p.note)+'</span>' : '')+
+    var paid = p.status === "paid";
+    return '<div style="display:flex;flex-direction:column;gap:10px;padding:16px 0;border-bottom:1px solid oklch(0.95 0.008 250);">'+
+      '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;">'+
+        '<div style="display:flex;flex-direction:column;gap:3px;">'+
+          '<div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;">'+
+            '<span style="font:600 15px/1.3 Figtree,sans-serif;">'+ISV.fmtDate(p.date)+' · '+ISV.esc(p.method||'-')+'</span>'+
+            '<span style="padding:4px 10px;border-radius:999px;font:700 10.5px/1 Figtree,sans-serif;text-transform:uppercase;letter-spacing:0.07em;'+
+              (paid ? 'background:oklch(0.94 0.05 160);color:oklch(0.38 0.10 160);">Paid'
+                    : 'background:oklch(0.96 0.03 85);color:oklch(0.48 0.10 72);">Awaiting payment')+'</span>'+
+          '</div>'+
+          '<span style="font:400 13px/1.5 Figtree,sans-serif;color:oklch(0.55 0.015 250);">'+p.rideCount+' ride'+(p.rideCount===1?'':'s')+' · '+p.id+(p.by?' · by '+ISV.esc(p.by):'')+'</span>'+
+          (p.note ? '<span style="font:400 13px/1.5 Figtree,sans-serif;color:oklch(0.50 0.015 250);">'+ISV.esc(p.note)+'</span>' : '')+
+          (paid && p.confirmedOn ? '<span style="font:500 12.5px/1.5 Figtree,sans-serif;color:oklch(0.42 0.10 160);">Confirmed paid '+ISV.fmtDate(p.confirmedOn)+'</span>' : '')+
+        '</div>'+
+        '<span style="font:700 18px/1.3 Figtree,sans-serif;white-space:nowrap;">'+ISV.money(p.amount)+'</span>'+
       '</div>'+
-      '<span style="font:700 18px/1.3 Figtree,sans-serif;white-space:nowrap;">'+ISV.money(p.amount)+'</span></div>';
-  }).join('') : '<span style="font:400 15px/1.6 Figtree,sans-serif;color:oklch(0.58 0.015 250);">No payments recorded yet.</span>';
-  document.getElementById('histModal').style.display = "flex";
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;">'+
+        '<a class="chip" style="text-decoration:none;" href="../invoice/?driver='+encodeURIComponent(email)+'&payment='+encodeURIComponent(p.id)+'">Open / resend invoice</a>'+
+        (paid
+          ? '<button class="chip" data-unconfirm="'+p.id+'">Undo paid</button>'
+          : '<button class="chip" data-confirm="'+p.id+'" style="background:oklch(0.32 0.03 248);border-color:oklch(0.32 0.03 248);color:#fff;">Mark as paid</button>')+
+      '</div>'+
+    '</div>';
+  }).join('') : '<span style="font:400 15px/1.6 Figtree,sans-serif;color:oklch(0.58 0.015 250);">No invoices yet.</span>';
+
+  document.querySelectorAll('[data-confirm]').forEach(function(el){
+    el.onclick = function(){
+      var id = this.getAttribute('data-confirm');
+      var p = ISV.auth.payments(HIST_EMAIL).find(function(x){ return x.id === id; });
+      if (!p) return;
+      if (!confirm("Mark " + ISV.money(p.amount) + " as paid?\n\nOnly confirm once the money has actually been sent.")) return;
+      var today = isoToday();
+      ISV.auth.updatePayment(HIST_EMAIL, id, { status:"paid", confirmedOn: today });
+      ISV.book.markPaid(p.rideIds || [], p);
+      paintHist(); render();
+    };
+  });
+  document.querySelectorAll('[data-unconfirm]').forEach(function(el){
+    el.onclick = function(){
+      var id = this.getAttribute('data-unconfirm');
+      var p = ISV.auth.payments(HIST_EMAIL).find(function(x){ return x.id === id; });
+      if (!p || !confirm("Undo this payment? It goes back to awaiting payment.")) return;
+      ISV.auth.updatePayment(HIST_EMAIL, id, { status:"sent", confirmedOn: null });
+      (p.rideIds || []).forEach(function(rid){ ISV.book.update(rid, { paidOn: null }, "Payment " + id + " marked unpaid"); });
+      paintHist(); render();
+    };
+  });
 }
 
 render();

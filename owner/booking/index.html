@@ -119,6 +119,8 @@ function render(){
         '<h2 style="margin:0;font:700 34px/1.05 \'Barlow Condensed\',sans-serif;text-transform:uppercase;letter-spacing:0.01em;">'+b.id+'</h2>'+ISV.pill(b.status)+
       '</div></div>'+
     '<div style="display:flex;gap:10px;flex-wrap:wrap;">'+
+      (b.status === "Pending" ? '<button class="btn" id="approveRide" style="padding:12px 20px;font-size:14px;">Approve request</button>'+
+        '<button class="btn2" id="rejectRide" style="padding:12px 18px;font-size:14px;color:oklch(0.50 0.15 25);">Decline</button>' : '')+
       '<button class="btn2" id="editTrip" style="padding:12px 18px;font-size:14px;">'+(EDITING?'Cancel editing':'Edit trip')+'</button>'+
       (b.status !== "Completed" && b.status !== "Cancelled" ? '<button class="btn2" id="markDone" style="padding:12px 18px;font-size:14px;">Mark completed</button>' : '')+
       (b.status !== "Cancelled" ? '<button class="btn2" id="cancelRide" style="padding:12px 18px;font-size:14px;color:oklch(0.50 0.15 25);">Cancel ride</button>'
@@ -184,6 +186,7 @@ function render(){
           }
           return out;
         })()+
+        (b.status === "Pending" ? '<div style="padding:12px 14px;border-radius:10px;background:oklch(0.97 0.04 60);border:1px solid oklch(0.90 0.05 55);font:500 13.5px/1.5 Figtree,sans-serif;color:oklch(0.46 0.13 45);">Approve this request first - it stays out of the drivers\' consoles until you do.</div>' : '')+
         '<span style="font:400 14px/1.5 Figtree,sans-serif;color:oklch(0.52 0.015 250);">'+
           (b.driverEmail ? 'Assigned to <b>'+ISV.esc((ISV.auth.accounts().find(function(u){return u.email===b.driverEmail;})||{}).name || b.driverEmail)+'</b>'+(b.status==="Accepted"||b.status==="En route"||b.status==="Picked up"||b.status==="Completed" ? ' and accepted.' : '.')+'' : 'No driver on this ride yet.')+'</span>'+
         '<div style="display:flex;flex-direction:column;gap:8px;">'+
@@ -227,11 +230,30 @@ function render(){
             '<span style="font:400 14px/1.4 Figtree,sans-serif;color:oklch(0.52 0.015 250);">'+r.label+'</span>'+
             '<span style="font:600 14px/1.4 Figtree,sans-serif;color:oklch(0.32 0.02 250);">'+r.amount+'</span></div>'; }).join('')+
           '<div style="height:1px;background:oklch(0.93 0.01 250);"></div>'+
-          '<span style="font:400 13px/1.5 Figtree,sans-serif;color:oklch(0.55 0.015 250);">Private pay - collected at pickup. (Online payment page is scaffolded, not live.)</span>'+
+          (function(){
+            var state = ISV.book.chargeState(b);
+            if (state === "paid"){
+              return '<div style="padding:11px 13px;border-radius:9px;background:oklch(0.94 0.05 160);font:600 13px/1.5 Figtree,sans-serif;color:oklch(0.36 0.10 160);">Paid '+ISV.fmtDate(b.clientPaidOn)+(b.clientPaidMethod?' ('+ISV.esc(b.clientPaidMethod)+')':'')+
+                '</div><button class="btn2" id="unpayClient" style="padding:10px;font-size:13px;">Mark unpaid</button>';
+            }
+            if (state === "due"){
+              return '<div style="padding:11px 13px;border-radius:9px;background:oklch(0.97 0.03 85);font:600 13px/1.5 Figtree,sans-serif;color:oklch(0.48 0.10 72);">Payment due - the ride is completed.</div>'+
+                '<button class="btn" id="payClient" style="padding:12px;font-size:14px;">Record payment received</button>';
+            }
+            return '<span style="font:400 13px/1.5 Figtree,sans-serif;color:oklch(0.55 0.015 250);">Charged when the ride is completed. Nothing is collected up front.</span>';
+          })()+
         '</div></div>'+
     '</div>'+
   '</div>';
 
+  var ap = document.getElementById('approveRide');
+  if (ap) ap.onclick = function(){ ISV.book.approve(id, me.name); render(); };
+  var rj = document.getElementById('rejectRide');
+  if (rj) rj.onclick = function(){
+    var why = prompt("Decline this request. Reason for the log?");
+    if (why === null) return;
+    ISV.book.reject(id, why, me.name); render();
+  };
   document.getElementById('editTrip').onclick = function(){ EDITING = !EDITING; render(); };
   if (EDITING){
     document.getElementById('eCancel').onclick = function(){ EDITING = false; render(); };
@@ -263,6 +285,14 @@ function render(){
   });
   var un = document.getElementById('unassign');
   if (un) un.onclick = function(){ ISV.book.update(id, { driverEmail: null, status: "New" }, "Driver unassigned by " + me.name); render(); };
+  var pc = document.getElementById('payClient');
+  if (pc) pc.onclick = function(){
+    var how = prompt("Record payment of " + ISV.money(b.fare) + " from " + b.name + ".\nHow did they pay? (cash, card, Zelle, invoiced, broker)", "cash");
+    if (how === null) return;
+    ISV.book.markClientPaid(id, how.trim() || "cash", me.name); render();
+  };
+  var uc = document.getElementById('unpayClient');
+  if (uc) uc.onclick = function(){ if (confirm("Mark this ride as unpaid again?")) { ISV.book.markClientUnpaid(id, me.name); render(); } };
   var md = document.getElementById('markDone');
   if (md) md.onclick = function(){ ISV.book.update(id, { status: "Completed" }, "Marked completed by dispatch"); render(); };
   var cr = document.getElementById('cancelRide');

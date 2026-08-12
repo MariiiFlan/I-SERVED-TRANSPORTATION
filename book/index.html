@@ -263,6 +263,7 @@ document.getElementById('submit').onclick = function(){
   if (S.autoMiles != null) draft.routedMiles = true;
   if (me && me.role === "owner"){ // dispatch books directly - no checkout gate
     var btn = this; btn.disabled = true; btn.textContent = "Saving…";
+    draft.createdByOwner = true;
     draft.log = [{ t: Date.now(), text: "Created by dispatch (" + me.name + ") - estimate " + ISV.money(draft.fare) }];
     ISV.book.addAsync(draft).then(function(b){
       location.href = '../confirm/?id=' + b.id;

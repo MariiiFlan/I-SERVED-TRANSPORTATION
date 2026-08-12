@@ -21,6 +21,7 @@
   var USERS = [];             // all user docs (owners only)
   var GRANTS = {};            // email -> {role, vehicle, cred, phone, active} (owners + own)
   var PAYMENTS = {};          // email -> [payment records]  (OWNER ONLY)
+  var PAYMENTS_OK = true;     // false when the payments rules aren't published yet
   var BOOTSTRAPPED = false;   // does the site have its first owner yet
   var DBERROR = null;
   var unsubs = [];
@@ -30,7 +31,7 @@
   function fireChange() { changeHandlers.forEach(function (f) { try { f(); } catch (e) {} }); }
   function friendly(e) {
     var code = (e && e.code) || "";
-    if (code.indexOf("permission-denied") > -1) return "The database security rules aren't installed yet - open README.txt and do the 'PASTE THE DATABASE RULES' step (2 minutes).";
+    if (code.indexOf("permission-denied") > -1) return "Your database rules need updating - open firestore.rules from the site folder and re-paste it into Firebase (Firestore Database > Rules > Publish).";
     if (code.indexOf("email-already-in-use") > -1) return "An account with that email already exists - sign in instead.";
     if (code.indexOf("invalid-credential") > -1 || code.indexOf("wrong-password") > -1 || code.indexOf("user-not-found") > -1) return "Email or password doesn't match an account.";
     if (code.indexOf("weak-password") > -1) return "Password needs at least 6 characters.";
@@ -179,9 +180,12 @@
       sub(db.collection("grants"), function (snap) {
         GRANTS = {}; snap.docs.forEach(function (d) { GRANTS[d.id] = d.data(); });
       });
-      sub(db.collection("payments"), function (snap) {
+      // optional collection: if the rules for it aren't published yet the
+      // rest of the console still works, so this failure stays quiet.
+      unsubs.push(db.collection("payments").onSnapshot(function (snap) {
         PAYMENTS = {}; snap.docs.forEach(function (d) { PAYMENTS[d.id] = (d.data() || {}).list || []; });
-      });
+        PAYMENTS_OK = true; fireChange();
+      }, function () { PAYMENTS_OK = false; fireChange(); }));
     } else if (ME.role === "driver") {
       sub(db.collection("bookings").where("driverEmail", "==", ME.email), applyBookings);
       // a driver may also have booked personal rides
@@ -343,6 +347,15 @@
     profile: function (email) { return GRANTS[norm(email)] || {}; },
     // Payment history: owner-only collection. Drivers cannot read this at all.
     payments: function (email) { return (PAYMENTS[norm(email)] || []).slice().sort(function (a, b) { return b.t - a.t; }); },
+    updatePayment: function (email, id, patch) {
+      email = norm(email);
+      var list = (PAYMENTS[email] || []).map(function (p) { return p.id === id ? Object.assign({}, p, patch) : p; });
+      PAYMENTS[email] = list;
+      fireChange();
+      return withTimeout(db.collection("payments").doc(email).set({ list: list }, { merge: true }), 8000)
+        .catch(function (e) { if (e && e.code === "timeout") return restPatch("payments", email, { list: list }, ["list"]); throw e; })
+        .catch(function (e) { alert(friendly(e)); });
+    },
     addPayment: function (email, rec) {
       email = norm(email);
       var list = (PAYMENTS[email] || []).concat([rec]);
@@ -471,7 +484,7 @@
     _prep: function (b) {
       b.id = newId();
       b.created = Date.now();
-      b.status = b.status || "New";
+      b.status = b.status || (b.createdByOwner ? "New" : "Pending");
       b.driverEmail = b.driverEmail || null;
       b.userEmail = b.userEmail ? norm(b.userEmail) : null;
       b.log = b.log || [{ t: Date.now(), text: "Requested online - form submitted with estimate " + ISV.money(b.fare || 0) }];
@@ -552,26 +565,57 @@
       });
     },
     driverCut: function (b) { return +(((b.fare || 0) * (C.DRIVER_SHARE || 0.6))).toFixed(2); },
-    // every completed ride for a driver, split into paid / unpaid
+    // completed rides for a driver: unbilled -> invoiced -> paid
     earnings: function (email) {
       email = norm(email);
       var rides = BOOK.all().filter(function (b) {
         return b.driverEmail === email && b.status === "Completed";
       });
-      var unpaid = rides.filter(function (b) { return !b.paidOn; });
       var paid = rides.filter(function (b) { return b.paidOn; });
+      var invoiced = rides.filter(function (b) { return b.invoicedOn && !b.paidOn; });
+      var unbilled = rides.filter(function (b) { return !b.invoicedOn && !b.paidOn; });
       function sum(list) { return +(list.reduce(function (s, b) { return s + BOOK.driverCut(b); }, 0)).toFixed(2); }
-      return { rides: rides, unpaid: unpaid, paid: paid, owed: sum(unpaid), paidTotal: sum(paid), lifetime: sum(rides) };
+      return {
+        rides: rides, unbilled: unbilled, invoiced: invoiced, paid: paid,
+        unbilledTotal: sum(unbilled), invoicedTotal: sum(invoiced), paidTotal: sum(paid),
+        owed: +(sum(unbilled) + sum(invoiced)).toFixed(2),   // everything not yet paid out
+        lifetime: sum(rides)
+      };
+    },
+    markInvoiced: function (ids, payment) {
+      ids.forEach(function (id) {
+        BOOK.update(id, { invoicedOn: payment.date, paymentId: payment.id },
+          "Included on invoice " + payment.id);
+      });
     },
     markPaid: function (ids, payment) {
       ids.forEach(function (id) {
         BOOK.update(id, { paidOn: payment.date, paymentId: payment.id },
-          "Driver paid " + money(payment.amount ? BOOK.driverCut(BOOK.byId(id) || {}) : 0) + " (payment " + payment.id + ")");
+          "Driver paid " + money(BOOK.driverCut(BOOK.byId(id) || {})) + " (payment " + payment.id + ")");
       });
+    },
+    // ---- what the CLIENT owes: charged when the ride is completed ----
+    chargeState: function (b) {
+      if (b.clientPaidOn) return "paid";
+      if (b.status === "Completed") return "due";
+      return "pending";
+    },
+    markClientPaid: function (id, method, byName) {
+      BOOK.update(id, { clientPaidOn: new Date().toISOString().slice(0, 10), clientPaidMethod: method },
+        "Client payment received (" + method + ")" + (byName ? " - recorded by " + byName : ""));
+    },
+    markClientUnpaid: function (id, byName) {
+      BOOK.update(id, { clientPaidOn: null, clientPaidMethod: null },
+        "Client payment marked unpaid" + (byName ? " by " + byName : ""));
     },
     forDriver: function (email) {
       email = norm(email);
-      return BOOK.all().filter(function (b) { return b.driverEmail === email && b.status !== "Cancelled"; });
+      return BOOK.all().filter(function (b) { return b.driverEmail === email && b.status !== "Cancelled" && b.status !== "Pending"; });
+    },
+    approve: function (id, byName) { BOOK.update(id, { status: "New", approvedOn: Date.now() }, "Approved by " + (byName || "dispatch")); },
+    reject: function (id, reason, byName) {
+      BOOK.update(id, { status: "Cancelled", rejectedReason: reason || "" },
+        "Declined by " + (byName || "dispatch") + (reason ? " - " + reason : ""));
     }
   };
 
@@ -634,8 +678,11 @@
       '</div></div>';
   }
 
+  // Only the owner ever sees database warnings. Customers and drivers
+  // must never be shown setup or error messages.
   function dbBanner() {
-    return DBERROR ? '<div style="background:oklch(0.96 0.03 85);padding:12px 32px;font:500 14px/1.5 Figtree,sans-serif;color:oklch(0.42 0.09 75);text-align:center;">' + DBERROR + '</div>' : '';
+    if (!DBERROR || !ME || ME.role !== "owner") return '';
+    return '<div style="background:oklch(0.96 0.03 85);padding:12px 32px;font:500 14px/1.5 Figtree,sans-serif;color:oklch(0.42 0.09 75);text-align:center;">' + esc(DBERROR) + '</div>';
   }
 
   function header(root) {
@@ -706,6 +753,7 @@
 
   function pill(status) {
     var map = {
+      "Pending":   ["oklch(0.96 0.04 60)",    "oklch(0.48 0.13 45)"],
       "New":       ["oklch(0.95 0.025 237)", "oklch(0.45 0.10 240)"],
       "Assigned":  ["oklch(0.96 0.03 85)",   "oklch(0.50 0.10 75)"],
       "Accepted":  ["oklch(0.96 0.03 85)",   "oklch(0.50 0.10 75)"],
@@ -742,6 +790,7 @@
     root: "", ready: ready, auth: AUTH, book: BOOK,
     onChange: function (fn) { changeHandlers.push(fn); },
     bootstrapped: function () { return BOOTSTRAPPED; },
+    paymentsReady: function () { return PAYMENTS_OK; },
     dbError: function () { return DBERROR; },
     sendEmail: sendEmail, notifyNewBooking: notifyNewBooking, notifyAccepted: notifyAccepted, notifyDeclined: notifyDeclined,
     rideBlurb: rideBlurb, telHref: telHref, smsHref: smsHref, driverRideText: driverRideText, serviceLabel: serviceLabel,

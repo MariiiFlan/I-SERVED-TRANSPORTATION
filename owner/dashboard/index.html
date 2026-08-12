@@ -81,7 +81,7 @@ ISV.ready(function(){
 var me = ISV.auth.require("owner", "/owner/dashboard/");
 if (me){
 
-function unassignedCount(){ return ISV.book.all().filter(function(b){ return !b.driverEmail && b.status !== "Cancelled" && b.status !== "Completed"; }).length; }
+function unassignedCount(){ return ISV.book.all().filter(function(b){ return !b.driverEmail && b.status !== "Cancelled" && b.status !== "Completed" && b.status !== "Pending"; }).length; }
 
 function sidebar(){
   document.getElementById('side').innerHTML = ISV.sidebar("../../", "dash", "Dispatch console", [
@@ -96,7 +96,7 @@ function sidebar(){
 var now = new Date();
 document.getElementById('today').textContent = now.toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
 
-var FILTERS = ["All","New","Awaiting accept","Declined","Assigned","En route","Completed","Cancelled","Trash"];
+var FILTERS = ["All","Pending approval","New","Awaiting accept","Declined","Assigned","En route","Completed","Payment due","Cancelled","Trash"];
 var VISIBLE = [];
 var SELECTED = {};
 var fStatus = "All";
@@ -137,6 +137,8 @@ function chips(){
     var label = f === "Trash" ? "Trash ("+nTrash+")" : f;
     if (f === "Declined"){ var nD = ISV.book.all().filter(function(b){ return ISV.book.declinedBy(b).length && !b.driverEmail && b.status !== "Cancelled" && b.status !== "Completed"; }).length; label = "Declined ("+nD+")"; }
     if (f === "Awaiting accept"){ var nA = ISV.book.all().filter(function(b){ return b.status === "Assigned"; }).length; label = "Awaiting accept ("+nA+")"; }
+    if (f === "Pending approval"){ var nP = ISV.book.all().filter(function(b){ return b.status === "Pending"; }).length; label = "Pending approval ("+nP+")"; }
+    if (f === "Payment due"){ var nPay = ISV.book.all().filter(function(b){ return b.status === "Completed" && !b.clientPaidOn; }).length; label = "Payment due ("+nPay+")"; }
     return '<button class="chip'+(fStatus===f?' on':'')+'" data-f="'+f+'" '+(f==="Trash"?'style="color:oklch(0.50 0.15 25);"':'')+'>'+label+'</button>';
   }).join('');
   document.querySelectorAll('[data-f]').forEach(function(el){ el.onclick=function(){ fStatus=this.getAttribute('data-f'); chips(); rows(); }; });
@@ -163,9 +165,11 @@ function rows(){
   var inTrash = fStatus === "Trash";
   var all = (inTrash ? ISV.book.trash() : ISV.book.all()).slice().sort(function(a,b){ return (b.date+(b.time||'')) < (a.date+(a.time||'')) ? -1 : 1; });
   var list = all.filter(function(b){
+    if (!inTrash && fStatus === "Pending approval" && b.status !== "Pending") return false;
+    if (!inTrash && fStatus === "Payment due" && !(b.status === "Completed" && !b.clientPaidOn)) return false;
     if (!inTrash && fStatus === "Awaiting accept" && b.status !== "Assigned") return false;
     if (!inTrash && fStatus === "Declined" && !(ISV.book.declinedBy(b).length && !b.driverEmail && b.status !== "Cancelled" && b.status !== "Completed")) return false;
-    if (!inTrash && fStatus !== "All" && fStatus !== "Awaiting accept" && fStatus !== "Declined" && bucket(b.status) !== fStatus) return false;
+    if (!inTrash && ["All","Awaiting accept","Declined","Pending approval","Payment due"].indexOf(fStatus) === -1 && bucket(b.status) !== fStatus) return false;
     if (fd && b.driverEmail !== fd) return false;
     if (q){
       var hay = (b.id+" "+b.name+" "+b.phone+" "+b.pickup+" "+b.dropoff).toLowerCase();
@@ -195,9 +199,18 @@ function rows(){
         (decl.length ? '<div style="margin-top:4px;font:500 11.5px/1.5 Figtree,sans-serif;color:oklch(0.50 0.13 40);">'+ISV.esc(decl[decl.length-1].name)+' declined'+(decl[decl.length-1].reason?': '+ISV.esc(decl[decl.length-1].reason):'')+'</div>' : '')+'</td>'+
       '<td style="font:600 14px/1.4 Figtree,sans-serif;white-space:nowrap;">'+ISV.money(b.fare)+'</td>'+
       '<td>'+ISV.pill(b.status)+'</td>'+
-      '<td>'+(inTrash
+      '<td onclick="event.stopPropagation()"><div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">'+(inTrash
         ? '<button class="chip" data-restore="'+b.id+'">Restore</button>'
-        : '<button data-trash="'+b.id+'" title="Move to trash" style="cursor:pointer;border:0;background:none;font-size:16px;line-height:1;padding:6px;border-radius:8px;color:oklch(0.55 0.10 25);">🗑</button>')+'</td></tr>';
+        : (b.status === "Pending"
+            ? '<button class="chip" data-approve="'+b.id+'" style="background:oklch(0.32 0.03 248);border-color:oklch(0.32 0.03 248);color:#fff;">Approve</button>'+
+              '<button class="chip" data-reject="'+b.id+'" style="color:oklch(0.50 0.15 25);">Decline</button>'
+            : (b.status === "Completed"
+                ? (b.clientPaidOn
+                    ? '<span style="font:600 11px/1 Figtree,sans-serif;color:oklch(0.40 0.10 160);background:oklch(0.94 0.05 160);padding:5px 10px;border-radius:999px;white-space:nowrap;">Paid</span>'
+                    : '<button class="chip" data-charge="'+b.id+'" style="color:oklch(0.48 0.12 45);">Collect '+ISV.money(b.fare)+'</button>')
+                : '')))+
+        (inTrash ? '' : '<button data-trash="'+b.id+'" title="Move to trash" style="cursor:pointer;border:0;background:none;font-size:16px;line-height:1;padding:6px;border-radius:8px;color:oklch(0.55 0.10 25);">🗑</button>')+
+      '</div></td></tr>';
   }).join('');
   document.getElementById('countLine').textContent = list.length + " of " + all.length + (inTrash ? " in trash" : " bookings");
   document.querySelectorAll('.rowsel').forEach(function(el){
@@ -216,6 +229,29 @@ function rows(){
     rows();
   };
   bulkBar();
+  document.querySelectorAll('[data-approve]').forEach(function(el){
+    el.onclick = function(ev){ ev.stopPropagation(); ISV.book.approve(this.getAttribute('data-approve'), me.name); refresh(); };
+  });
+  document.querySelectorAll('[data-reject]').forEach(function(el){
+    el.onclick = function(ev){
+      ev.stopPropagation();
+      var why = prompt("Decline this request. What should the log say? (no vehicle available, outside service area, etc.)");
+      if (why === null) return;
+      ISV.book.reject(this.getAttribute('data-reject'), why, me.name); refresh();
+    };
+  });
+  document.querySelectorAll('[data-charge]').forEach(function(el){
+    el.onclick = function(ev){
+      ev.stopPropagation();
+      var id = this.getAttribute('data-charge');
+      var bb = ISV.book.byId(id);
+      if (!bb) return;
+      var how = prompt("Record payment of " + ISV.money(bb.fare) + " from " + bb.name + ".\nHow did they pay? (cash, card, Zelle, invoiced, broker)", "cash");
+      if (how === null) return;
+      ISV.book.markClientPaid(id, how.trim() || "cash", me.name);
+      refresh();
+    };
+  });
   document.querySelectorAll('[data-trash]').forEach(function(el){
     el.onclick = function(ev){ ev.stopPropagation(); ISV.book.moveToTrash(this.getAttribute('data-trash'), me.name); refresh(); };
   });
@@ -313,14 +349,18 @@ function attention(){
   var declined = all.filter(function(b){ return ISV.book.declinedBy(b).length && !b.driverEmail && b.status !== "Cancelled" && b.status !== "Completed"; });
   var stale = all.filter(function(b){ return b.status === "Assigned" && b.assignedAt && (Date.now() - b.assignedAt) > 2*60*60*1000; });
   var el = document.getElementById('attention');
+  var pending = all.filter(function(b){ return b.status === "Pending"; });
+  var due = all.filter(function(b){ return b.status === "Completed" && !b.clientPaidOn; });
   var bits = [];
+  if (pending.length) bits.push('<b>'+pending.length+'</b> new request'+(pending.length===1?'':'s')+' waiting for your approval');
+  if (due.length) bits.push('<b>'+due.length+'</b> completed ride'+(due.length===1?'':'s')+' with payment not collected');
   if (declined.length) bits.push('<b>'+declined.length+'</b> ride'+(declined.length===1?'':'s')+' came back declined and need'+(declined.length===1?'s':'')+' a new driver');
   if (stale.length) bits.push('<b>'+stale.length+'</b> assigned ride'+(stale.length===1?'':'s')+' still not accepted after 2 hours');
   if (bits.length){
     el.style.display = "block";
     el.innerHTML = "Needs your attention: " + bits.join(" &nbsp;·&nbsp; ") + '. <a href="#" id="jumpDeclined" style="font-weight:700;">Show them</a>';
     var j = document.getElementById('jumpDeclined');
-    if (j) j.onclick = function(e){ e.preventDefault(); fStatus = declined.length ? "Declined" : "Awaiting accept"; chips(); rows(); };
+    if (j) j.onclick = function(e){ e.preventDefault(); fStatus = pending.length ? "Pending approval" : due.length ? "Payment due" : declined.length ? "Declined" : "Awaiting accept"; chips(); rows(); };
   } else el.style.display = "none";
 }
 function refresh(){ sidebar(); stats(); driverFilter(); rows(); attention(); }
