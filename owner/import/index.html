@@ -23,7 +23,7 @@
     <div class="card" style="gap:16px;">
       <p style="margin:0;font:400 15px/1.65 Figtree,sans-serif;color:oklch(0.48 0.015 250);">
         Drop in a <b>.csv</b> or Excel <b>.xlsx</b> export - like the ride exports from Saferide - and every row becomes a booking on the dashboard.
-        The importer reads the column headers and figures out what's what (ride ID, status, vehicle, passenger, addresses, dates, and more when the file has them).
+        The importer reads the column headers and figures out what's what: ride ID, status, vehicle, passenger, addresses, dates, <b>fare</b>, and <b>which driver it belongs to</b> (matched by driver email, phone number, or name). Anything it can't match is left for you to assign.
         Rides you've already imported are recognized by their ID and won't duplicate - if their status changed in the new file, it updates.
       </p>
       <div id="drop" style="border:2px dashed oklch(0.85 0.03 237);border-radius:14px;padding:44px;text-align:center;cursor:pointer;background:oklch(0.99 0.004 250);">
@@ -44,7 +44,7 @@
       </div>
       <div style="background:#fff;border:1px solid oklch(0.92 0.012 250);border-radius:14px;overflow:auto;max-height:480px;">
         <table class="tbl" style="min-width:820px;">
-          <thead><tr><th>ID</th><th>Passenger</th><th>Trip</th><th>Date</th><th>Vehicle</th><th>Status</th><th></th></tr></thead>
+          <thead><tr><th>ID</th><th>Passenger</th><th>Trip</th><th>Date</th><th>Vehicle</th><th>Fare</th><th>Driver</th><th>Status</th><th></th></tr></thead>
           <tbody id="previewRows"></tbody>
         </table>
       </div>
@@ -127,9 +127,11 @@ var ALIASES = {
   puTime:     ["pickuptime","pick up time","pickup time","date","pickup date","appointment date","trip date","ride date","service date","time"],
   doTime:     ["dropofftime","drop off time","dropoff time","appointment time","arrival time"],
   miles:      ["miles","mileage","distance","trip miles","estimated miles"],
-  fare:       ["fare","price","cost","amount","rate","total","payout"],
+  fare:       ["fare","price","cost","amount","rate","total","payout","charge","tripcost","triprate","tripprice","fareamount"],
   mobility:   ["mobilitytype","mobility type","los","level of service","service level","vehicle","vehiclename","vehicle name","vehicle type"],
-  driverRaw:  ["driver","drivername","driver name","assigned driver"],
+  driverRaw:   ["driver","drivername","driver name","assigned driver","assignedto","assigned to","assigneddriver"],
+  driverEmail: ["driveremail","driver email","assigned email","driver e-mail"],
+  driverPhone: ["driverphone","driver phone","assigned phone","driver mobile","driver cell"],
   payor:      ["payor","payer","insurance","plan","funding source"],
   broker:     ["mediroutesclient","fulfilledby","fulfilled by","broker","source","account"],
   escorts:    ["escorts","escort"],
@@ -202,6 +204,39 @@ function joinAddress(name, street, city, state, zip){
   return line || nm;
 }
 
+// Finds a driver account from whatever the spreadsheet gives us:
+// an email, a phone number, or a name (full, partial, or first name).
+function digits(s){ return String(s || "").replace(/\D/g, ""); }
+function matchDriver(emailRaw, phoneRaw, nameRaw){
+  var drivers = ISV.auth.drivers();
+  var email = String(emailRaw || "").trim().toLowerCase();
+  if (email){
+    var byEmail = drivers.find(function(d){ return d.email === email; });
+    if (byEmail) return { driver: byEmail, how: "email" };
+  }
+  var ph = digits(phoneRaw);
+  if (ph.length >= 10){
+    var last10 = ph.slice(-10);
+    var byPhone = drivers.find(function(d){ return digits(d.phone).slice(-10) === last10; });
+    if (byPhone) return { driver: byPhone, how: "phone" };
+  }
+  var name = String(nameRaw || "").trim().toLowerCase();
+  if (name && !/^unassigned$/i.test(name)){
+    var exact = drivers.find(function(d){ return String(d.name || "").trim().toLowerCase() === name; });
+    if (exact) return { driver: exact, how: "name" };
+    // "Kamari" should match "Kamari Flanagan", and vice versa
+    var loose = drivers.filter(function(d){
+      var dn = String(d.name || "").trim().toLowerCase();
+      if (!dn) return false;
+      return dn.indexOf(name) === 0 || name.indexOf(dn) === 0 ||
+             dn.split(/\s+/)[0] === name.split(/\s+/)[0];
+    });
+    if (loose.length === 1) return { driver: loose[0], how: "name" };
+    if (loose.length > 1) return { driver: null, how: "ambiguous", text: nameRaw };
+  }
+  return { driver: null, how: "none", text: emailRaw || phoneRaw || nameRaw || "" };
+}
+
 var PENDING = null; // {docs, updates, skips}
 
 function buildPreview(headers, rows, filename){
@@ -242,10 +277,14 @@ function buildPreview(headers, rows, filename){
     if (cell(r,"carSeats") && cell(r,"carSeats") !== "0") noteBits.push("Car seats: " + cell(r,"carSeats"));
     if (cell(r,"mobility")) noteBits.push("Mobility: " + cell(r,"mobility"));
     if (cell(r,"claimNote")) noteBits.push("Claim: " + cell(r,"claimNote"));
-    if (cell(r,"driverRaw") && !/unassigned/i.test(cell(r,"driverRaw"))) noteBits.push("Driver in file: " + cell(r,"driverRaw"));
     if (cell(r,"notes")) noteBits.push(cell(r,"notes"));
 
     var pax = 1 + (parseInt(cell(r,"escorts"),10)||0) + (parseInt(cell(r,"attendants"),10)||0);
+
+    var match = matchDriver(cell(r,"driverEmail"), cell(r,"driverPhone"), cell(r,"driverRaw"));
+    var assignedTo = match.driver ? match.driver.email : null;
+    if (match.how === "ambiguous") noteBits.push("Driver in file: " + match.text + " (more than one driver matches - assign manually)");
+    else if (match.how === "none" && match.text && !/unassigned/i.test(match.text)) noteBits.push("Driver in file: " + match.text + " (no matching account - assign manually)");
 
     var doc = {
       id: extId ? "SR-" + extId : ("IST-" + Math.floor(100000 + Math.random()*899999)),
@@ -272,11 +311,12 @@ function buildPreview(headers, rows, filename){
       notes: noteBits.join(" | "),
       miles: parseFloat(cell(r, "miles")) || 0,
       fare: parseFloat(String(cell(r, "fare")).replace(/[$,]/g, "")) || 0,
-      status: st.status,
-      driverEmail: null,
+      status: assignedTo && st.status === "New" ? "Assigned" : st.status,
+      driverEmail: assignedTo,
       userEmail: null,
       created: Date.now(),
       log: [{ t: Date.now(), text: "Imported from " + filename + (payor ? " - payor " + payor : "") }]
+        .concat(assignedTo ? [{ t: Date.now(), text: "Assigned to " + match.driver.name + " from the file (matched by " + match.how + ")" }] : [])
     };
     if (!doc.fare && doc.miles){
       var calc = ISV.fare({ vehicle: doc.vehicle, miles: doc.miles, tripType: doc.tripType, addOns: doc.addOns });
@@ -299,15 +339,24 @@ function buildPreview(headers, rows, filename){
     news.length + " new ride" + (news.length===1?"":"s") +
     (updates ? " · " + updates + " status update" + (updates===1?"":"s") : "") +
     (skips ? " · " + skips + " already in, unchanged (skipped)" : "") +
-    (cancelled ? " · includes " + cancelled + " cancelled" : "");
+    (cancelled ? " · includes " + cancelled + " cancelled" : "") +
+    (function(){
+      var a = docs.filter(function(x){ return !x._update && x.driverEmail; }).length;
+      var u = docs.filter(function(x){ return !x._update && !x.driverEmail; }).length;
+      return (a ? " · " + a + " auto-assigned to a driver" : "") + (u ? " · " + u + " to assign yourself" : "");
+    })();
   document.getElementById('previewRows').innerHTML = docs.map(function(d){
-    if (d._update) return '<tr><td style="font:600 13px/1.4 Figtree,sans-serif;color:oklch(0.45 0.06 240);">'+d.id+'</td><td colspan="4" style="color:oklch(0.55 0.015 250);">already imported</td><td>'+ISV.pill(d.status)+'</td><td style="font:600 12px/1 Figtree,sans-serif;color:oklch(0.55 0.13 60);">status update</td></tr>';
+    if (d._update) return '<tr><td style="font:600 13px/1.4 Figtree,sans-serif;color:oklch(0.45 0.06 240);">'+d.id+'</td><td colspan="6" style="color:oklch(0.55 0.015 250);">already imported</td><td>'+ISV.pill(d.status)+'</td><td style="font:600 12px/1 Figtree,sans-serif;color:oklch(0.55 0.13 60);">status update</td></tr>';
     return '<tr>'+
       '<td style="font:600 13px/1.4 Figtree,sans-serif;color:oklch(0.45 0.06 240);white-space:nowrap;">'+d.id+'</td>'+
       '<td>'+ISV.esc(d.name)+(d.phone?'<div style="font:400 12.5px/1.4 Figtree,sans-serif;color:oklch(0.55 0.015 250);">'+ISV.esc(d.phone)+'</div>':'')+'</td>'+
       '<td style="max-width:260px;">'+ISV.esc(d.pickup)+' <span style="color:oklch(0.60 0.015 250);">→</span> '+ISV.esc(d.dropoff)+'</td>'+
       '<td style="white-space:nowrap;">'+ISV.fmtDate(d.date)+(d.time?' '+ISV.fmtTime(d.time):'')+(d.willCall?'<div style="font:600 11px/1.6 Figtree,sans-serif;color:oklch(0.55 0.13 60);">Will call</div>':'')+'</td>'+
       '<td>'+ISV.vehicleShort(d.vehicle)+(d.legType?'<div style="font:600 11px/1.6 Figtree,sans-serif;color:oklch(0.55 0.015 250);">Leg '+d.legType+'</div>':'')+(d.payor?'<div style="font:400 11.5px/1.5 Figtree,sans-serif;color:oklch(0.58 0.015 250);">'+ISV.esc(d.payor)+'</div>':'')+'</td>'+
+      '<td style="white-space:nowrap;">'+(d.fare ? ISV.money(d.fare) : '<span style="color:oklch(0.58 0.015 250);">auto</span>')+'</td>'+
+      '<td>'+(d.driverEmail
+        ? '<span style="font:600 12px/1 Figtree,sans-serif;color:oklch(0.40 0.10 160);background:oklch(0.94 0.05 160);padding:5px 10px;border-radius:999px;white-space:nowrap;">'+ISV.esc((ISV.auth.drivers().find(function(x){return x.email===d.driverEmail;})||{}).name || d.driverEmail)+'</span>'
+        : '<span style="font:600 12px/1 Figtree,sans-serif;color:oklch(0.55 0.13 60);background:oklch(0.97 0.03 85);padding:5px 10px;border-radius:999px;white-space:nowrap;">Assign later</span>')+'</td>'+
       '<td>'+ISV.pill(d.status)+'</td><td></td></tr>';
   }).join('');
   document.getElementById('previewWrap').style.display = docs.length ? "flex" : "none";

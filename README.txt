@@ -73,7 +73,18 @@ Owner console -> Dashboard -> "Import rides" button.
   imports as its own trip, labeled in the notes.
 * MobilityType maps to the service type (AMB -> ambulatory sedan,
   WC/wheelchair -> wheelchair van).
-* Fares are auto-calculated from the rate card when the file has none.
+* FARES: if the file has a fare/price/cost/amount/rate/total column it is
+  used as-is. If not, the fare is calculated from the rate card.
+* DRIVER ASSIGNMENT: the importer will assign each ride automatically if
+  the file has any of these:
+    - a driver email column   (driveremail / driver email / assigned email)
+    - a driver phone column   (driverphone / driver phone / driver mobile)
+    - a driver name column    (driver / drivername / assigned to)
+  Names match loosely, so "Kamari" finds "Kamari Flanagan". Phone numbers
+  match on the last 10 digits, so any formatting works.
+  Anything it cannot match (blank, "Unassigned", an unknown name, or a
+  name that matches two drivers) is left unassigned with a note, and shows
+  "Assign later" in the preview so you can do it from the dashboard.
 * Statuses map like this:
     Scheduled  -> New
     WillCall   -> New, tagged "Will-call return" in the notes
