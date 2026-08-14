@@ -523,6 +523,36 @@
       fireChange();
       return b;
     },
+    // A round trip is stored as two separate one-way rides: A Leg out and
+    // B Leg back. Same total money, but each leg can be assigned, driven,
+    // completed and invoiced on its own.
+    addTripAsync: function (b) {
+      if (b.tripType !== "round") {
+        b.leg = b.leg || "A";
+        return BOOK.addAsync(b).then(function (saved) { return [saved]; });
+      }
+      var group = "GRP-" + Math.floor(100000 + Math.random() * 899999);
+      var oneWayMiles = Math.round((Number(b.miles || 0) / 2) * 10) / 10;
+      function legFare(v) {
+        var f = fare({ vehicle: b.vehicle, tripType: "oneway", miles: oneWayMiles, addOns: b.addOns });
+        return +f.total.toFixed(2);
+      }
+      var legA = Object.assign({}, b, {
+        tripType: "oneway", leg: "A", groupId: group,
+        miles: oneWayMiles, fare: legFare(),
+        notes: b.notes || ""
+      });
+      var legB = Object.assign({}, b, {
+        tripType: "oneway", leg: "B", groupId: group,
+        pickup: b.dropoff, dropoff: b.pickup,
+        pickupCoords: b.dropoffCoords, dropoffCoords: b.pickupCoords,
+        miles: oneWayMiles, fare: legFare(),
+        notes: b.notes || ""
+      });
+      return BOOK.addAsync(legA).then(function (a) {
+        return BOOK.addAsync(legB).then(function (bb) { return [a, bb]; });
+      });
+    },
     addAsync: function (b) { // waits for the database to CONFIRM before resolving
       BOOK._prep(b);
       return withTimeout(db.collection("bookings").doc(b.id).set(b), 8000)
@@ -558,17 +588,9 @@
         })
         .catch(function (e) { alert("Couldn't save that change: " + friendly(e)); });
       fireChange();
-      if (justCompleted) setTimeout(function () {
-        var done = BOOK.byId(id);
-        if (done && done.cardOnFile && done.stripePaymentMethodId && C.PAYMENT_API) {
-          BOOK.chargeCard(id).then(function (res) {
-            // "no-card" and real declines both fall back to emailing the bill
-            if (!res.ok && res.reason !== "Already paid") BOOK.billClient(id);
-          });
-        } else {
-          BOOK.billClient(id);
-        }
-      }, 2500);
+      // Completing a ride sends the receipt. Charging is always a button
+      // press, so cash and card rides are both handled by hand.
+      if (justCompleted) setTimeout(function () { BOOK.sendReceipt(id); }, 1200);
     },
     importSet: function (docs) { // bulk import/upsert, chunked batches
       var chunks = [];
@@ -676,6 +698,27 @@
         return { ok: false, reason: (e && e.message) || "Could not reach the payment service." };
       });
     },
+    receiptText: function (b) {
+      var lines = [
+        C.COMPANY,
+        C.PHONE_DISPLAY,
+        "",
+        "RECEIPT - ride " + b.id,
+        fmtDate(b.date) + " at " + fmtTime(b.time),
+        (legLabel(b) ? legDescription(b) : ""),
+        "",
+        "Passenger: " + (b.name || ""),
+        "From: " + (b.pickup || ""),
+        "To: " + (b.dropoff || ""),
+        vehicleShort(b.vehicle) + " · " + (b.miles || 0) + " mi",
+        "",
+        "Total: " + money(b.fare)
+      ];
+      if (b.clientPaidOn) lines.push("Paid " + fmtDate(b.clientPaidOn) + (b.clientPaidMethod ? " (" + b.clientPaidMethod + ")" : ""));
+      else lines.push("Amount due: " + money(b.fare), "Call " + C.PHONE_DISPLAY + " to settle up.");
+      lines.push("", "Thank you for riding with " + C.COMPANY + ".");
+      return lines.join("\n");
+    },
     clientBillText: function (b) {
       return "Hi " + (b.name || "") + ", your ride with " + C.COMPANY + " is complete.\n\n" +
         fmtDate(b.date) + " at " + fmtTime(b.time) + "\n" +
@@ -684,6 +727,27 @@
         "Amount due: " + money(b.fare) + "\n" +
         "Ride " + b.id + "\n\n" +
         "Call " + C.PHONE_DISPLAY + " to pay or with any questions. Thank you for riding with us.";
+    },
+    sendReceipt: function (id, byName) {
+      var b = BOOK.byId(id);
+      if (!b) return Promise.resolve(false);
+      var body = BOOK.receiptText(b);
+      var subject = C.COMPANY + " - receipt for ride " + b.id;
+      var jobs = [sendEmail(subject + " (" + (b.name || "") + ")", body)];
+      if (b.userEmail) {
+        jobs.push(fetch("https://formsubmit.co/ajax/" + encodeURIComponent(b.userEmail), {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Accept": "application/json" },
+          body: JSON.stringify({ _subject: subject, message: body })
+        }).catch(function () {}));
+      }
+      BOOK.update(id, { receiptSentOn: new Date().toISOString().slice(0, 10) },
+        "Receipt sent" + (b.userEmail ? " to " + b.userEmail : " to the office (no client email on file)") + (byName ? " by " + byName : ""));
+      return Promise.all(jobs).then(function () { return true; });
+    },
+    markClientPaidCash: function (id, byName) {
+      BOOK.update(id, { clientPaidOn: new Date().toISOString().slice(0, 10), clientPaidMethod: "cash" },
+        "Marked paid in cash" + (byName ? " by " + byName : ""));
     },
     // Sends the bill and marks it sent. Runs automatically when a ride is
     // completed, and can be fired again by hand from the console.
@@ -890,7 +954,23 @@
     if (!addr) return "";
     return '<a href="' + mapsUrl(addr) + '" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="' + (style || "") + '">' + esc(addr) + '</a>';
   }
-  function tripLine(b) { return vehicleShort(b.vehicle) + " · " + (b.tripType === "round" ? "round trip" : "one way") + " · " + (b.miles || 0) + " mi"; }
+  var LEG_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  function legLabel(b) {
+    if (!b || !b.leg) return "";
+    if (b.leg === "A") return "A Leg";
+    if (b.leg === "B") return "B Leg";
+    return b.leg + " Leg";
+  }
+  function legDescription(b) {
+    if (!b || !b.leg) return "";
+    if (b.leg === "A") return "A Leg - to the appointment";
+    if (b.leg === "B") return "B Leg - return home";
+    return b.leg + " Leg - onward stop";
+  }
+  function tripLine(b) {
+    var leg = legLabel(b);
+    return (leg ? leg + " · " : "") + vehicleShort(b.vehicle) + " · " + (b.miles || 0) + " mi";
+  }
 
   window.ISV = {
     root: "", ready: ready, auth: AUTH, book: BOOK,
@@ -922,6 +1002,7 @@
     rideBlurb: rideBlurb, telHref: telHref, smsHref: smsHref, driverRideText: driverRideText, serviceLabel: serviceLabel,
     money: money, fare: fare, totalMilesFor: totalMilesFor, vehicleName: vehicleName, vehicleShort: vehicleShort,
     logo: logo, header: header, footer: footer, sidebar: sidebar, pill: pill, avatar: avatar,
-    fmtDate: fmtDate, fmtTime: fmtTime, esc: esc, tripLine: tripLine, mapsUrl: mapsUrl, mapLink: mapLink
+    fmtDate: fmtDate, fmtTime: fmtTime, esc: esc, tripLine: tripLine, mapsUrl: mapsUrl, mapLink: mapLink,
+    legLabel: legLabel, legDescription: legDescription, LEG_LETTERS: LEG_LETTERS
   };
 })();

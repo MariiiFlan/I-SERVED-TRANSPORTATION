@@ -133,7 +133,7 @@ function render(){
       '<div class="card" style="gap:0;padding:0;overflow:hidden;">'+
         '<div style="padding:16px 24px;background:oklch(0.985 0.008 237);border-bottom:1px solid oklch(0.93 0.01 250);font:700 14px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.45 0.02 250);">Trip</div>'+
         '<div style="padding:8px 24px 16px;">'+
-          [["Pickup", ISV.mapLink(b.pickup), true], ["Destination", ISV.mapLink(b.dropoff), true], ["Date", ISV.fmtDate(b.date)+", "+(b.date||"").slice(0,4)], ["Appointment time", ISV.fmtTime(b.time)],
+          [["Leg", ISV.legDescription(b) || "Single trip"], ["Pickup", ISV.mapLink(b.pickup), true], ["Destination", ISV.mapLink(b.dropoff), true], ["Date", ISV.fmtDate(b.date)+", "+(b.date||"").slice(0,4)], ["Appointment time", ISV.fmtTime(b.time)],
            ["Trip type", (b.tripType==="round"?"Round trip":"One way")+" · "+b.miles+" mi total"], ["Vehicle", ISV.vehicleName(b.vehicle)],
            ["Service", ISV.serviceLabel(b.service) || "Not specified"], ["Payor", b.payor || "Private pay"]]
           .map(function(r){ return '<div style="display:grid;grid-template-columns:170px 1fr;gap:16px;padding:12px 0;border-bottom:1px solid oklch(0.96 0.006 250);">'+
@@ -233,20 +233,24 @@ function render(){
           (function(){
             var state = ISV.book.chargeState(b);
             if (state === "paid"){
-              return '<div style="padding:11px 13px;border-radius:9px;background:oklch(0.94 0.05 160);font:600 13px/1.5 Figtree,sans-serif;color:oklch(0.36 0.10 160);">Paid '+ISV.fmtDate(b.clientPaidOn)+(b.clientPaidMethod?' ('+ISV.esc(b.clientPaidMethod)+')':'')+
-                '</div><button class="btn2" id="unpayClient" style="padding:10px;font-size:13px;">Mark unpaid</button>';
+              return '<div style="padding:11px 13px;border-radius:9px;background:oklch(0.94 0.05 160);font:600 13px/1.5 Figtree,sans-serif;color:oklch(0.36 0.10 160);">Paid '+ISV.fmtDate(b.clientPaidOn)+(b.clientPaidMethod?' ('+ISV.esc(b.clientPaidMethod)+')':'')+'</div>'+
+                '<button class="btn2" id="sendReceipt" style="padding:11px;font-size:13.5px;">'+(b.receiptSentOn?'Resend receipt':'Send receipt')+'</button>'+
+                (b.phone ? '<a class="btn2" style="padding:11px;font-size:13.5px;text-align:center;display:block;" href="'+ISV.smsHref(b.phone, ISV.book.receiptText(b))+'">Text the receipt</a>' : '')+
+                '<button class="btn2" id="unpayClient" style="padding:10px;font-size:13px;">Mark unpaid</button>';
             }
             if (state === "due"){
               if (b.cardOnFile && b.stripePaymentMethodId){
                 return '<div style="padding:11px 13px;border-radius:9px;background:oklch(0.97 0.03 85);font:600 13px/1.5 Figtree,sans-serif;color:oklch(0.48 0.10 72);">Card on file'+(b.chargeError?' - last charge failed: '+ISV.esc(b.chargeError):' - not charged yet')+'</div>'+
                   '<button class="btn" id="chargeCard" style="padding:12px;font-size:14px;">Charge the card '+ISV.money(b.fare)+'</button>'+
-                  '<button class="btn2" id="payClient" style="padding:11px;font-size:13.5px;">Record as paid another way</button>';
+                  '<button class="btn2" id="cashClient" style="padding:11px;font-size:13.5px;">They paid cash</button>'+
+                  '<button class="btn2" id="sendReceipt" style="padding:11px;font-size:13.5px;">'+(b.receiptSentOn?'Resend receipt':'Send receipt')+'</button>';
               }
               return '<div style="padding:11px 13px;border-radius:9px;background:oklch(0.97 0.03 85);font:600 13px/1.5 Figtree,sans-serif;color:oklch(0.48 0.10 72);">Payment due - the ride is completed.'+
                 (b.billedOn ? '<div style="font-weight:500;margin-top:3px;">Bill sent '+ISV.fmtDate(b.billedOn)+'.</div>' : '<div style="font-weight:500;margin-top:3px;">No bill sent yet.</div>')+'</div>'+
-                '<button class="btn2" id="billClient" style="padding:11px;font-size:13.5px;">'+(b.billedOn?'Resend bill':'Send bill to client')+'</button>'+
-                (b.phone ? '<a class="btn2" style="padding:11px;font-size:13.5px;text-align:center;display:block;" href="'+ISV.smsHref(b.phone, ISV.book.clientBillText(b))+'">Text the bill</a>' : '')+
-                '<button class="btn" id="payClient" style="padding:12px;font-size:14px;">Record payment received</button>';
+                '<button class="btn" id="cashClient" style="padding:12px;font-size:14px;">They paid cash</button>'+
+                '<button class="btn2" id="sendReceipt" style="padding:11px;font-size:13.5px;">'+(b.receiptSentOn?'Resend receipt':'Send receipt')+'</button>'+
+                (b.phone ? '<a class="btn2" style="padding:11px;font-size:13.5px;text-align:center;display:block;" href="'+ISV.smsHref(b.phone, ISV.book.receiptText(b))+'">Text the receipt</a>' : '')+
+                '<button class="btn2" id="payClient" style="padding:11px;font-size:13.5px;">Record paid another way</button>';
             }
             return '<span style="font:400 13px/1.5 Figtree,sans-serif;color:oklch(0.55 0.015 250);">Charged when the ride is completed. Nothing is collected up front.</span>';
           })()+
@@ -303,10 +307,15 @@ function render(){
       render();
     });
   };
-  var bc = document.getElementById('billClient');
-  if (bc) bc.onclick = function(){
-    bc.disabled = true; bc.textContent = "Sending...";
-    ISV.book.billClient(id, me.name).then(function(){ render(); });
+  var sr = document.getElementById('sendReceipt');
+  if (sr) sr.onclick = function(){
+    sr.disabled = true; sr.textContent = "Sending...";
+    ISV.book.sendReceipt(id, me.name).then(function(){ render(); });
+  };
+  var cash = document.getElementById('cashClient');
+  if (cash) cash.onclick = function(){
+    if (!confirm("Mark " + ISV.money(b.fare) + " from " + b.name + " as PAID IN CASH?")) return;
+    ISV.book.markClientPaidCash(id, me.name); render();
   };
   var pc = document.getElementById('payClient');
   if (pc) pc.onclick = function(){

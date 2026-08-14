@@ -163,7 +163,31 @@ HOW CARDS WORK ONCE LIVE
   * Rides booked with a promo code (or by phone) have no card - those still
     get the emailed bill.
 
-CLIENT PAYMENTS (billed the moment the ride is completed)
+ROUND TRIPS ARE SPLIT INTO LEGS
+--------------------------------
+A round trip is saved as TWO separate rides:
+    A Leg = house to the appointment
+    B Leg = appointment back home
+Each leg can be assigned to a different driver, accepted, completed,
+charged and invoiced on its own. The money is identical to the old
+single round trip, just split across the two.
+
+Imported files work the same way. If the file has a TripType/leg column
+(A, B, C...) that is used. If it does not, rides for the same passenger
+on the same day are put in time order and lettered automatically -
+A, B, then C, D, E, F... for every extra stop before they get home.
+
+CLIENT PAYMENTS - nothing charges itself
+-----------------------------------------
+Completing a ride SENDS A RECEIPT. It never charges anybody.
+Collecting the money is always a button press:
+    "Charge card $X"  - runs the card saved at booking
+    "Paid cash"       - marks it paid in cash
+    "Receipt"         - email or text the I Served receipt again
+The client also gets the receipt by email automatically when the ride is
+completed (if they booked with an account).
+
+OLD - CLIENT PAYMENTS (billed the moment the ride is completed)
 ----------------------------------------------------------
 Nothing is charged when someone books. The SECOND a driver marks a ride
 Completed, the bill goes out automatically:

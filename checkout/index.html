@@ -183,10 +183,10 @@ function bookWithCard(){
     });
     b.log = [{ t: Date.now(), text: "Booked online with a card on file - charged after the ride is completed (estimate " + ISV.money(b.fare) + ")" }];
     btn.textContent = "Sending...";
-    return ISV.book.addAsync(b);
+    return ISV.book.addTripAsync(b);
   }).then(function(saved){
     try { sessionStorage.removeItem('isv_checkout_draft'); } catch(e){}
-    location.href = '../confirm/?id=' + saved.id;
+    location.href = '../confirm/?id=' + saved[0].id;
   }).catch(function(e){
     err.textContent = (e && e.message) || String(e);
     btn.disabled = false; btn.textContent = "Save card & book this ride";
@@ -229,9 +229,9 @@ completeBtn.onclick = function(){
   completeBtn.disabled = true; completeBtn.textContent = "Sending…";
   var b = Object.assign({}, draft, { promo: appliedPromo, cardOnFile: false });
   b.log = [{ t: Date.now(), text: "Booked online with promo code " + appliedPromo + " - no card on file (estimate " + ISV.money(b.fare) + ")" }];
-  ISV.book.addAsync(b).then(function(saved){
+  ISV.book.addTripAsync(b).then(function(saved){
     try { sessionStorage.removeItem('isv_checkout_draft'); } catch(e){}
-    location.href = '../confirm/?id=' + saved.id;
+    location.href = '../confirm/?id=' + saved[0].id;
   }).catch(function(e){
     err.textContent = "The booking did NOT save: " + e;
     completeBtn.disabled = false; setComplete(true);

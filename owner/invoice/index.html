@@ -113,7 +113,7 @@ document.getElementById('sheet').innerHTML =
     (rides.length ? rides.map(function(b){
       return '<tr>'+
         '<td style="padding:11px 8px;font:400 13px/1.5 Figtree,sans-serif;border-bottom:1px solid oklch(0.95 0.008 250);white-space:nowrap;">'+ISV.fmtDate(b.date)+'</td>'+
-        '<td style="padding:11px 8px;font:500 13px/1.5 Figtree,sans-serif;border-bottom:1px solid oklch(0.95 0.008 250);">'+ISV.esc(b.name)+'</td>'+
+        '<td style="padding:11px 8px;font:500 13px/1.5 Figtree,sans-serif;border-bottom:1px solid oklch(0.95 0.008 250);">'+ISV.esc(b.name)+(b.leg?'<div style="font:700 11px/1.5 Figtree,sans-serif;color:oklch(0.45 0.09 240);">'+ISV.esc(b.leg)+' Leg</div>':'')+'</td>'+
         '<td style="padding:11px 8px;font:400 12.5px/1.5 Figtree,sans-serif;color:oklch(0.50 0.015 250);border-bottom:1px solid oklch(0.95 0.008 250);">'+ISV.esc(b.pickup)+' &rarr; '+ISV.esc(b.dropoff)+'</td>'+
         '<td style="padding:11px 8px;font:400 12px/1.5 Figtree,sans-serif;color:oklch(0.55 0.015 250);border-bottom:1px solid oklch(0.95 0.008 250);white-space:nowrap;">'+b.id+'</td>'+
         '<td style="padding:11px 8px;font:700 13.5px/1.5 Figtree,sans-serif;text-align:right;border-bottom:1px solid oklch(0.95 0.008 250);white-space:nowrap;">'+ISV.money(ISV.book.driverCut(b))+'</td>'+
@@ -148,7 +148,7 @@ function plainText(){
     rides.length + " completed ride" + (rides.length===1?"":"s"),
     ""
   ].concat(rides.map(function(b){
-    return ISV.fmtDate(b.date) + "  " + b.name + "  (" + b.id + ")  " + ISV.money(ISV.book.driverCut(b));
+    return ISV.fmtDate(b.date) + "  " + b.name + (b.leg ? " (" + b.leg + " Leg)" : "") + "  " + b.id + "  " + ISV.money(ISV.book.driverCut(b));
   })).concat(["", "TOTAL: " + ISV.money(rec.amount)]).join("\n");
 }
 

@@ -265,8 +265,8 @@ document.getElementById('submit').onclick = function(){
     var btn = this; btn.disabled = true; btn.textContent = "Saving…";
     draft.createdByOwner = true;
     draft.log = [{ t: Date.now(), text: "Created by dispatch (" + me.name + ") - estimate " + ISV.money(draft.fare) }];
-    ISV.book.addAsync(draft).then(function(b){
-      location.href = '../confirm/?id=' + b.id;
+    ISV.book.addTripAsync(draft).then(function(list){
+      location.href = '../confirm/?id=' + list[0].id;
     }).catch(function(e){
       err.textContent = "The booking did NOT save: " + e;
       btn.disabled = false; btn.textContent = "Continue to checkout";

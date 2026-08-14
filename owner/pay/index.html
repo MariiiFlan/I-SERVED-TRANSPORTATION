@@ -197,7 +197,7 @@ function paintPayRides(e){
   document.getElementById('payRides').innerHTML = e.unbilled.map(function(b){
     return '<label style="display:flex;align-items:center;gap:12px;padding:9px 6px;border-bottom:1px solid oklch(0.96 0.006 250);cursor:pointer;">'+
       '<input type="checkbox" class="paysel" data-id="'+b.id+'" '+(SELECTED[b.id]?'checked':'')+' style="width:17px;height:17px;accent-color:oklch(0.62 0.115 237);">'+
-      '<span style="flex:1;font:500 13.5px/1.45 Figtree,sans-serif;">'+ISV.fmtDate(b.date)+' · '+ISV.esc(b.name)+
+      '<span style="flex:1;font:500 13.5px/1.45 Figtree,sans-serif;">'+ISV.fmtDate(b.date)+' · '+ISV.esc(b.name)+(b.leg?' <span style="color:oklch(0.45 0.09 240);font-weight:700;">'+ISV.esc(b.leg)+' Leg</span>':'')+
         '<span style="display:block;font:400 12px/1.4 Figtree,sans-serif;color:oklch(0.58 0.015 250);">'+b.id+' · fare '+ISV.money(b.fare)+'</span></span>'+
       '<span style="font:700 14px/1 Figtree,sans-serif;">'+ISV.money(ISV.book.driverCut(b))+'</span></label>';
   }).join('') || '<span style="font:400 14px/1.6 Figtree,sans-serif;color:oklch(0.58 0.015 250);">Nothing outstanding.</span>';

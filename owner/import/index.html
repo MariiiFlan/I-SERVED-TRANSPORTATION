@@ -173,10 +173,10 @@ function mapMobility(raw){
 // TripType A = to the appointment (pick up), B = return (drop off)
 function mapLeg(raw){
   var s = String(raw || "").trim().toUpperCase();
-  if (s === "A") return { legLabel:"Leg A - to appointment", tripType:"oneway" };
-  if (s === "B") return { legLabel:"Leg B - return home", tripType:"oneway" };
-  if (/ROUND/i.test(raw || "")) return { legLabel:"", tripType:"round" };
-  return { legLabel:"", tripType:"oneway" };
+  var m = s.match(/^([A-Z])$/) || s.match(/LEG\s*([A-Z])/);
+  if (m) return { leg: m[1], tripType: "oneway" };
+  if (/ROUND/i.test(raw || "")) return { leg: "", tripType: "round" };
+  return { leg: "", tripType: "oneway" };
 }
 function mapDate(raw){
   var s = String(raw || "").trim();
@@ -263,7 +263,6 @@ function buildPreview(headers, rows, filename){
     var payor = cell(r, "payor");
 
     var noteBits = [];
-    if (leg.legLabel) noteBits.push(leg.legLabel);
     if (st.willCall) noteBits.push("Will-call return - client calls when ready");
     if (cell(r,"puNotes")) noteBits.push("Pickup notes: " + cell(r,"puNotes").replace(/\s*\n+\s*/g, " "));
     var dn = cell(r,"doNotes");
@@ -293,6 +292,7 @@ function buildPreview(headers, rows, filename){
       payor: payor || broker || "",
       broker: broker || "",
       memberId: cell(r,"memberId") || "",
+      leg: leg.leg || "",
       legType: String(cell(r,"tripLeg")||"").trim().toUpperCase() || "",
       name: cell(r, "name") || (extId ? "Trip #" + extId : "Imported ride"),
       phone: cell(r, "phone"),
@@ -318,9 +318,10 @@ function buildPreview(headers, rows, filename){
       log: [{ t: Date.now(), text: "Imported from " + filename + (payor ? " - payor " + payor : "") }]
         .concat(assignedTo ? [{ t: Date.now(), text: "Assigned to " + match.driver.name + " from the file (matched by " + match.how + ")" }] : [])
     };
-    if (!doc.fare && doc.miles){
-      var calc = ISV.fare({ vehicle: doc.vehicle, miles: doc.miles, tripType: doc.tripType, addOns: doc.addOns });
+    if (!doc.fare){
+      var calc = ISV.fare({ vehicle: doc.vehicle, miles: doc.miles || 0, tripType: doc.tripType, addOns: doc.addOns });
       doc.fare = +calc.total.toFixed(2);
+      doc.fareEstimated = true;   // no price in the file - this is the rate-card estimate
     }
     if (st.status === "Cancelled") cancelled++;
 
@@ -332,6 +333,33 @@ function buildPreview(headers, rows, filename){
       } else skips++;
     } else docs.push(doc);
   });
+
+  // Rides for the same passenger on the same day become sequential legs:
+  // A to the appointment, B home, and C, D, E... for extra stops.
+  (function assignLegs(){
+    var groups = {};
+    docs.forEach(function(d){
+      if (d._update) return;
+      var key = (d.name || "") + "|" + (d.date || "");
+      (groups[key] = groups[key] || []).push(d);
+    });
+    Object.keys(groups).forEach(function(key){
+      var list = groups[key];
+      if (list.length < 2 && list[0] && list[0].leg) return;
+      list.sort(function(a,b){ return String(a.time||"") < String(b.time||"") ? -1 : 1; });
+      var used = {};
+      list.forEach(function(d){ if (d.leg) used[d.leg] = true; });
+      var next = 0;
+      list.forEach(function(d){
+        if (!d.leg){
+          while (used[ISV.LEG_LETTERS[next]] && next < 26) next++;
+          d.leg = ISV.LEG_LETTERS[next] || "";
+          used[d.leg] = true;
+        }
+        if (list.length > 1) d.groupId = "IMP-" + key.replace(/[^a-z0-9]/gi, "").slice(0, 18);
+      });
+    });
+  })();
 
   PENDING = { docs: docs };
   var news = docs.filter(function(d){ return !d._update; });
@@ -352,8 +380,8 @@ function buildPreview(headers, rows, filename){
       '<td>'+ISV.esc(d.name)+(d.phone?'<div style="font:400 12.5px/1.4 Figtree,sans-serif;color:oklch(0.55 0.015 250);">'+ISV.esc(d.phone)+'</div>':'')+'</td>'+
       '<td style="max-width:260px;">'+ISV.esc(d.pickup)+' <span style="color:oklch(0.60 0.015 250);">→</span> '+ISV.esc(d.dropoff)+'</td>'+
       '<td style="white-space:nowrap;">'+ISV.fmtDate(d.date)+(d.time?' '+ISV.fmtTime(d.time):'')+(d.willCall?'<div style="font:600 11px/1.6 Figtree,sans-serif;color:oklch(0.55 0.13 60);">Will call</div>':'')+'</td>'+
-      '<td>'+ISV.vehicleShort(d.vehicle)+(d.legType?'<div style="font:600 11px/1.6 Figtree,sans-serif;color:oklch(0.55 0.015 250);">Leg '+d.legType+'</div>':'')+(d.payor?'<div style="font:400 11.5px/1.5 Figtree,sans-serif;color:oklch(0.58 0.015 250);">'+ISV.esc(d.payor)+'</div>':'')+'</td>'+
-      '<td style="white-space:nowrap;">'+(d.fare ? ISV.money(d.fare) : '<span style="color:oklch(0.58 0.015 250);">auto</span>')+'</td>'+
+      '<td>'+ISV.vehicleShort(d.vehicle)+(d.leg?'<div style="font:700 11px/1.6 Figtree,sans-serif;color:oklch(0.45 0.09 240);">'+ISV.esc(d.leg)+' Leg</div>':'')+(d.payor?'<div style="font:400 11.5px/1.5 Figtree,sans-serif;color:oklch(0.58 0.015 250);">'+ISV.esc(d.payor)+'</div>':'')+'</td>'+
+      '<td style="white-space:nowrap;">'+ISV.money(d.fare)+(d.fareEstimated?'<div style="font:400 11px/1.5 Figtree,sans-serif;color:oklch(0.58 0.015 250);">estimated</div>':'')+'</td>'+
       '<td>'+(d.driverEmail
         ? '<span style="font:600 12px/1 Figtree,sans-serif;color:oklch(0.40 0.10 160);background:oklch(0.94 0.05 160);padding:5px 10px;border-radius:999px;white-space:nowrap;">'+ISV.esc((ISV.auth.drivers().find(function(x){return x.email===d.driverEmail;})||{}).name || d.driverEmail)+'</span>'
         : '<span style="font:600 12px/1 Figtree,sans-serif;color:oklch(0.55 0.13 60);background:oklch(0.97 0.03 85);padding:5px 10px;border-radius:999px;white-space:nowrap;">Assign later</span>')+'</td>'+
