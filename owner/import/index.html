@@ -106,11 +106,13 @@ function parseCSV(text){
 var ALIASES = {
   externalId: ["tripid","trip id","rideid","ride id","id","triplegid","confirmation","confirmation number","reference"],
   status:     ["status","ride status","trip status"],
-  name:       ["membername","member name","name","passenger","passenger name","client","client name","member","patient","patient name","rider"],
+  name:       ["membername","member name","name","passenger","passenger name","client","client name","member","patient","patient name","patientname","rider","ridername","fullname","full name"],
+  nameFirst:  ["patientfirstname","patient first name","memberfirstname","member first name","firstname","first name","clientfirstname","passengerfirstname","riderfirstname","fname"],
+  nameLast:   ["patientlastname","patient last name","memberlastname","member last name","lastname","last name","clientlastname","passengerlastname","riderlastname","lname"],
   memberId:   ["memberid","member id","member#"],
   age:        ["memberage","member age","age"],
   tripLeg:    ["triptype","trip type","leg","direction","legtype"],
-  phone:      ["pickupphone","pick up phone","phone","phone number","member phone","passenger phone","contact"],
+  phone:      ["pickupphone","pick up phone","phone","phone number","member phone","passenger phone","patientphone","patient phone","contact","mobile","cell","homephone"],
   dropPhone:  ["dropoffphone","drop off phone","drop-off phone"],
   puName:     ["pickupaddressname","pick up address name","pickup name","pickup location","origin name"],
   puStreet:   ["pickupstreet","pick up street","pickup address","pickup","origin","origin address","from","from address","pu address"],
@@ -294,7 +296,14 @@ function buildPreview(headers, rows, filename){
       memberId: cell(r,"memberId") || "",
       leg: leg.leg || "",
       legType: String(cell(r,"tripLeg")||"").trim().toUpperCase() || "",
-      name: cell(r, "name") || (extId ? "Trip #" + extId : "Imported ride"),
+      name: (function(){
+        var whole = cell(r, "name");
+        if (whole) return whole;
+        var first = cell(r, "nameFirst"), last = cell(r, "nameLast");
+        var joined = (first + " " + last).trim();
+        if (joined) return joined;
+        return extId ? "Trip #" + extId : "Imported ride";
+      })(),
       phone: cell(r, "phone"),
       pickup: pickup || "See broker portal",
       dropoff: dropoff || "See broker portal",
