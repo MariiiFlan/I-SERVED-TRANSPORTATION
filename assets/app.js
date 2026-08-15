@@ -350,10 +350,19 @@
         .catch(function (e) { alert(friendly(e)); });
     },
     accounts: function () {
-      var list = USERS.map(function (u) { return { name: u.name, email: norm(u.email), phone: u.phone, role: u.role || "client", uid: u.uid, photo: u.photo || "" }; });
+      var list = USERS.map(function (u) {
+        var g = GRANTS[norm(u.email)] || {};
+        return { name: u.name || g.name || "", email: norm(u.email), phone: u.phone || g.phone || "", role: u.role || "client", uid: u.uid, photo: u.photo || "" };
+      });
       Object.keys(GRANTS).forEach(function (email) {
-        if (!list.find(function (u) { return u.email === email; }))
-          list.push({ name: "(invited - hasn't created account yet)", email: email, role: GRANTS[email].role || "driver", pending: true });
+        if (!list.find(function (u) { return u.email === email; })) {
+          var g = GRANTS[email] || {};
+          list.push({
+            name: g.name || "(invited - hasn't created account yet)",
+            email: email, phone: g.phone || "",
+            role: g.role || "driver", pending: true
+          });
+        }
       });
       return list;
     },

@@ -30,7 +30,11 @@
         <a href="#" id="closeForm" style="font:600 13px/1 Figtree,sans-serif;">Close form</a>
       </div>
       <p style="margin:0;font:400 14px/1.6 Figtree,sans-serif;color:oklch(0.52 0.015 250);">Type any email. If they already made an account on the site, their access changes instantly. If they haven't yet, the role is waiting for them the moment they create their account with this email.</p>
-      <div class="grid3" style="display:grid;grid-template-columns:1.2fr 0.6fr 1fr;gap:14px;">
+      <div class="grid3" style="display:grid;grid-template-columns:1fr 1.2fr 0.8fr;gap:14px;">
+        <div style="display:flex;flex-direction:column;gap:7px;">
+          <label class="lbl">Full name</label>
+          <input id="fName" class="inp" placeholder="First and last name">
+        </div>
         <div style="display:flex;flex-direction:column;gap:7px;">
           <label class="lbl">Email</label>
           <input id="fEmail" type="email" class="inp" placeholder="driver@email.com">
@@ -108,6 +112,12 @@ function av(person, size){
   return '<div style="width:'+s+'px;height:'+s+'px;border-radius:50%;flex:0 0 auto;background:oklch(0.90 0.04 237);color:oklch(0.40 0.09 240);display:flex;align-items:center;justify-content:center;font:700 '+Math.round(s*0.38)+'px/1 Figtree,sans-serif;">'+ISV.esc(ini)+'</div>';
 }
 
+// a real account name wins; otherwise the name the owner typed on the invite
+function displayName(u){
+  if (u && u.name && !/^\(invited/.test(u.name)) return u.name;
+  var p = ISV.auth.profile(u.email) || {};
+  return p.name || (u && u.name) || u.email;
+}
 function weekCount(email){
   function iso(d){ return d.toISOString().slice(0,10); }
   var d = new Date(); var day = (d.getDay()+6)%7;
@@ -123,8 +133,10 @@ document.getElementById('saveMember').onclick = function(){
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ err.textContent = "Enter a valid email."; return; }
   var role = document.getElementById('fRole').value;
   ISV.auth.setRole(email, role);
+  var typedName = document.getElementById('fName').value.trim();
   if (role === "driver"){
     ISV.auth.saveProfile(email, {
+      name: typedName || undefined,
       vehicle: document.getElementById('fVehicle').value,
       phone: document.getElementById('fPhone').value.trim(),
       cred: document.getElementById('fCred').value.trim(),
@@ -134,6 +146,7 @@ document.getElementById('saveMember').onclick = function(){
   var existing = ISV.auth.accounts().find(function(u){ return u.email === email && !u.pending; });
   ok.textContent = existing ? "Done - " + email + " is now a " + role + "." : "Saved - " + role + " access is waiting for " + email + " when they create their account.";
   document.getElementById('fEmail').value = "";
+  document.getElementById('fName').value = "";
   render();
 };
 
@@ -155,8 +168,8 @@ function renderInner(){
     var active = p.active !== false;
     var isMe = u.email === me.email;
     return '<tr>'+
-      '<td><div style="display:flex;align-items:center;gap:10px;">'+av(u, 34)+'<div>'+
-      '<div style="font:600 14.5px/1.4 Figtree,sans-serif;">'+ISV.esc(u.name)+(isMe?' <span style="font:600 11px/1 Figtree,sans-serif;color:oklch(0.55 0.015 250);">(you)</span>':'')+'</div>'+
+      '<td><div style="display:flex;align-items:center;gap:10px;">'+av(Object.assign({}, u, { name: displayName(u) }), 34)+'<div>'+
+      '<div style="font:600 14.5px/1.4 Figtree,sans-serif;">'+ISV.esc(displayName(u))+(isMe?' <span style="font:600 11px/1 Figtree,sans-serif;color:oklch(0.55 0.015 250);">(you)</span>':'')+'</div>'+
       '<div style="font:400 13px/1.4 Figtree,sans-serif;color:oklch(0.55 0.015 250);">'+ISV.esc(u.email)+(p.phone?' · '+ISV.esc(p.phone):'')+'</div>'+
       (u.pending ? '<div style="margin-top:4px;"><span style="font:600 11px/1 Figtree,sans-serif;color:oklch(0.55 0.13 60);background:oklch(0.97 0.03 85);padding:4px 9px;border-radius:999px;">Invited - no account yet</span></div>' : '')+'</div></div></td>'+
       '<td><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'+
@@ -167,6 +180,7 @@ function renderInner(){
 '</td>'+
       '<td style="font:600 13.5px/1.5 Figtree,sans-serif;">'+(u.role==="driver" || u.role==="owner" ? weekCount(u.email) + " rides" : "-")+'</td>'+
       '<td><div style="display:flex;gap:8px;flex-wrap:wrap;">'+
+        '<button class="chip" data-act="rename" data-email="'+ISV.esc(u.email)+'">Edit name</button>'+
         (u.role === "driver" ? '<button class="chip" data-act="toggle" data-email="'+ISV.esc(u.email)+'">'+(active?'Deactivate':'Activate')+'</button>' : '')+
         (!isMe ? '<button class="chip" data-act="remove" data-email="'+ISV.esc(u.email)+'" style="color:oklch(0.50 0.15 25);">Remove access</button>' : '')+
       '</div></td></tr>';
@@ -177,6 +191,16 @@ function renderInner(){
       var email = this.getAttribute('data-email');
       var p = ISV.auth.profile(email);
       ISV.auth.saveProfile(email, { active: p.active === false });
+      render();
+    };
+  });
+  document.querySelectorAll('[data-act="rename"]').forEach(function(el){
+    el.onclick = function(){
+      var email = this.getAttribute('data-email');
+      var cur = displayName(ISV.auth.accounts().find(function(x){ return x.email === email; }) || { email: email });
+      var name = prompt("Name for " + email + ":", /^\(invited/.test(cur) ? "" : cur);
+      if (name === null) return;
+      ISV.auth.saveProfile(email, { name: name.trim() });
       render();
     };
   });

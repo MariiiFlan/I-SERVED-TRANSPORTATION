@@ -129,7 +129,8 @@ var ALIASES = {
   puTime:     ["pickuptime","pick up time","pickup time","date","pickup date","appointment date","trip date","ride date","service date","time"],
   doTime:     ["dropofftime","drop off time","dropoff time","appointment time","arrival time"],
   miles:      ["miles","mileage","distance","trip miles","estimated miles"],
-  fare:       ["fare","price","cost","amount","rate","total","payout","charge","tripcost","triprate","tripprice","fareamount"],
+  fare:       ["estimatedcost","estimated cost","ridecost","ride cost","fare","price","cost","amount","rate","total","payout","charge","tripcost","triprate","tripprice","fareamount","estimatedfare","estimated fare"],
+  fareAlt:    ["ridecost","ride cost","actualcost","actual cost","totalcost","total cost"],
   mobility:   ["mobilitytype","mobility type","los","level of service","service level","vehicle","vehiclename","vehicle name","vehicle type"],
   driverRaw:   ["driver","drivername","driver name","assigned driver","assignedto","assigned to","assigneddriver"],
   driverEmail: ["driveremail","driver email","assigned email","driver e-mail"],
@@ -318,8 +319,15 @@ function buildPreview(headers, rows, filename){
       addOns: { wait:false, assist:false, afterHours:false },
       pax: String(Math.max(1, pax)),
       notes: noteBits.join(" | "),
-      miles: parseFloat(cell(r, "miles")) || 0,
-      fare: parseFloat(String(cell(r, "fare")).replace(/[$,]/g, "")) || 0,
+      miles: parseFloat(String(cell(r, "miles")).replace(/[^0-9.]/g, "")) || 0,
+      fare: (function(){
+        // the file's own price always wins - it is never recalculated
+        var v = parseFloat(String(cell(r, "fare")).replace(/[^0-9.\-]/g, ""));
+        if (!isNaN(v) && v > 0) return +v.toFixed(2);
+        var alt = parseFloat(String(cell(r, "fareAlt")).replace(/[^0-9.\-]/g, ""));
+        if (!isNaN(alt) && alt > 0) return +alt.toFixed(2);
+        return 0;
+      })(),
       status: assignedTo && st.status === "New" ? "Assigned" : st.status,
       driverEmail: assignedTo,
       userEmail: null,
@@ -327,10 +335,12 @@ function buildPreview(headers, rows, filename){
       log: [{ t: Date.now(), text: "Imported from " + filename + (payor ? " - payor " + payor : "") }]
         .concat(assignedTo ? [{ t: Date.now(), text: "Assigned to " + match.driver.name + " from the file (matched by " + match.how + ")" }] : [])
     };
-    if (!doc.fare){
+    if (doc.fare > 0) {
+      doc.fareFromFile = true;    // keep the file's price exactly as given
+    } else {
       var calc = ISV.fare({ vehicle: doc.vehicle, miles: doc.miles || 0, tripType: doc.tripType, addOns: doc.addOns });
       doc.fare = +calc.total.toFixed(2);
-      doc.fareEstimated = true;   // no price in the file - this is the rate-card estimate
+      doc.fareEstimated = true;   // no price in the file - rate-card estimate
     }
     if (st.status === "Cancelled") cancelled++;
 
@@ -390,7 +400,7 @@ function buildPreview(headers, rows, filename){
       '<td style="max-width:260px;">'+ISV.esc(d.pickup)+' <span style="color:oklch(0.60 0.015 250);">→</span> '+ISV.esc(d.dropoff)+'</td>'+
       '<td style="white-space:nowrap;">'+ISV.fmtDate(d.date)+(d.time?' '+ISV.fmtTime(d.time):'')+(d.willCall?'<div style="font:600 11px/1.6 Figtree,sans-serif;color:oklch(0.55 0.13 60);">Will call</div>':'')+'</td>'+
       '<td>'+ISV.vehicleShort(d.vehicle)+(d.leg?'<div style="font:700 11px/1.6 Figtree,sans-serif;color:oklch(0.45 0.09 240);">'+ISV.esc(d.leg)+' Leg</div>':'')+(d.payor?'<div style="font:400 11.5px/1.5 Figtree,sans-serif;color:oklch(0.58 0.015 250);">'+ISV.esc(d.payor)+'</div>':'')+'</td>'+
-      '<td style="white-space:nowrap;">'+ISV.money(d.fare)+(d.fareEstimated?'<div style="font:400 11px/1.5 Figtree,sans-serif;color:oklch(0.58 0.015 250);">estimated</div>':'')+'</td>'+
+      '<td style="white-space:nowrap;">'+ISV.money(d.fare)+(d.fareEstimated?'<div style="font:400 11px/1.5 Figtree,sans-serif;color:oklch(0.58 0.015 250);">rate card</div>':'<div style="font:400 11px/1.5 Figtree,sans-serif;color:oklch(0.45 0.10 160);">from file</div>')+'</td>'+
       '<td>'+(d.driverEmail
         ? '<span style="font:600 12px/1 Figtree,sans-serif;color:oklch(0.40 0.10 160);background:oklch(0.94 0.05 160);padding:5px 10px;border-radius:999px;white-space:nowrap;">'+ISV.esc((ISV.auth.drivers().find(function(x){return x.email===d.driverEmail;})||{}).name || d.driverEmail)+'</span>'
         : '<span style="font:600 12px/1 Figtree,sans-serif;color:oklch(0.55 0.13 60);background:oklch(0.97 0.03 85);padding:5px 10px;border-radius:999px;white-space:nowrap;">Assign later</span>')+'</td>'+
