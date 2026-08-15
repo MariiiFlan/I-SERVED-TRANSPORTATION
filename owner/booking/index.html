@@ -239,15 +239,14 @@ function render(){
                 '<button class="btn2" id="unpayClient" style="padding:10px;font-size:13px;">Mark unpaid</button>';
             }
             if (state === "due"){
-              if (b.cardOnFile && b.stripePaymentMethodId){
-                return '<div style="padding:11px 13px;border-radius:9px;background:oklch(0.97 0.03 85);font:600 13px/1.5 Figtree,sans-serif;color:oklch(0.48 0.10 72);">Card on file'+(b.chargeError?' - last charge failed: '+ISV.esc(b.chargeError):' - not charged yet')+'</div>'+
-                  '<button class="btn" id="chargeCard" style="padding:12px;font-size:14px;">Charge the card '+ISV.money(b.fare)+'</button>'+
-                  '<button class="btn2" id="cashClient" style="padding:11px;font-size:13.5px;">They paid cash</button>'+
-                  '<button class="btn2" id="sendReceipt" style="padding:11px;font-size:13.5px;">'+(b.receiptSentOn?'Resend receipt':'Send receipt')+'</button>';
-              }
-              return '<div style="padding:11px 13px;border-radius:9px;background:oklch(0.97 0.03 85);font:600 13px/1.5 Figtree,sans-serif;color:oklch(0.48 0.10 72);">Payment due - the ride is completed.'+
-                (b.billedOn ? '<div style="font-weight:500;margin-top:3px;">Bill sent '+ISV.fmtDate(b.billedOn)+'.</div>' : '<div style="font-weight:500;margin-top:3px;">No bill sent yet.</div>')+'</div>'+
-                '<button class="btn" id="cashClient" style="padding:12px;font-size:14px;">They paid cash</button>'+
+              var hasCard = b.cardOnFile && b.stripePaymentMethodId;
+              return '<div style="padding:11px 13px;border-radius:9px;background:oklch(0.97 0.03 85);font:600 13px/1.5 Figtree,sans-serif;color:oklch(0.48 0.10 72);">'+
+                  'Payment due - ' + ISV.money(b.fare) +
+                  (hasCard ? '<div style="font-weight:500;margin-top:3px;">Card on file' + (b.chargeError ? ' - last charge failed: ' + ISV.esc(b.chargeError) : '') + '</div>'
+                           : '<div style="font-weight:500;margin-top:3px;">No card on file for this ride.</div>')+
+                '</div>'+
+                '<button class="btn" id="chargeCard" style="padding:12px;font-size:14px;'+(hasCard?'':'opacity:0.5;')+'">Charge the card '+ISV.money(b.fare)+'</button>'+
+                '<button class="btn2" id="cashClient" style="padding:12px;font-size:14px;color:oklch(0.36 0.10 160);">They paid cash</button>'+
                 '<button class="btn2" id="sendReceipt" style="padding:11px;font-size:13.5px;">'+(b.receiptSentOn?'Resend receipt':'Send receipt')+'</button>'+
                 (b.phone ? '<a class="btn2" style="padding:11px;font-size:13.5px;text-align:center;display:block;" href="'+ISV.smsHref(b.phone, ISV.book.receiptText(b))+'">Text the receipt</a>' : '')+
                 '<button class="btn2" id="payClient" style="padding:11px;font-size:13.5px;">Record paid another way</button>';
@@ -299,6 +298,10 @@ function render(){
   if (un) un.onclick = function(){ ISV.book.update(id, { driverEmail: null, status: "New" }, "Driver unassigned by " + me.name); render(); };
   var cc = document.getElementById('chargeCard');
   if (cc) cc.onclick = function(){
+    if (!(b.cardOnFile && b.stripePaymentMethodId)){
+      alert("There is no card on file for this ride - it was booked by phone or with a promo code. Use \"They paid cash\" or \"Record paid another way\".");
+      return;
+    }
     if (!confirm("Charge " + ISV.money(b.fare) + " to " + b.name + "'s card on file?")) return;
     cc.disabled = true; cc.textContent = "Charging...";
     ISV.book.chargeCard(id).then(function(res){

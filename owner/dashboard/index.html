@@ -212,9 +212,7 @@ function rows(){
             : (b.status === "Completed"
                 ? (b.clientPaidOn
                     ? '<span style="font:600 11px/1 Figtree,sans-serif;color:oklch(0.40 0.10 160);background:oklch(0.94 0.05 160);padding:5px 10px;border-radius:999px;white-space:nowrap;">Paid</span>'
-                    : (b.cardOnFile && b.stripePaymentMethodId
-                        ? '<button class="chip" data-cardcharge="'+b.id+'" style="background:oklch(0.32 0.03 248);border-color:oklch(0.32 0.03 248);color:#fff;">Charge card '+ISV.money(b.fare)+'</button>'
-                        : '')+
+                    :                       '<button class="chip" data-cardcharge="'+b.id+'" style="background:oklch(0.32 0.03 248);border-color:oklch(0.32 0.03 248);color:#fff;">Charge card '+ISV.money(b.fare)+'</button>'+
                       '<button class="chip" data-cash="'+b.id+'" style="color:oklch(0.40 0.10 160);">Paid cash</button>'+
                       '<button class="chip" data-receipt="'+b.id+'" title="'+(b.receiptSentOn?'Receipt sent '+ISV.fmtDate(b.receiptSentOn):'Send the receipt')+'">'+(b.receiptSentOn?'Resend receipt':'Receipt')+'</button>')
                 : '')))+
