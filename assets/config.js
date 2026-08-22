@@ -69,6 +69,18 @@ window.CONFIG = {
   // Drivers earn this share of each completed ride's fare.
   DRIVER_SHARE: 0.60,
 
+  // ---------------- CONTRACTOR / DEV FEE ----------------
+  // Kamari's share for building and maintaining the platform.
+  // Taken from the COMPANY's share (what is left after drivers are paid),
+  // not from the whole fare:
+  //   fare -> driver takes DRIVER_SHARE -> company keeps the rest
+  //        -> contractor gets SHARE_OF_COMPANY of that
+  CONTRACTOR: {
+    NAME: "Kamari Flanagan",
+    EMAIL: "officialkamariflanagan@gmail.com",
+    SHARE_OF_COMPANY: 0.02
+  },
+
   // ---------------- CHECKOUT / PROMO ----------------
   PROMO_CODES: ["MARIMACHI06"],
 

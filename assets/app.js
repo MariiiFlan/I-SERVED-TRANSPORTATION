@@ -636,6 +636,27 @@
       });
     },
     driverCut: function (b) { return +(((b.fare || 0) * (C.DRIVER_SHARE || 0.6))).toFixed(2); },
+    companyCut: function (b) { return +(((b.fare || 0) * (1 - (C.DRIVER_SHARE || 0.6)))).toFixed(2); },
+    contractorCut: function (b) {
+      var pct = (C.CONTRACTOR && C.CONTRACTOR.SHARE_OF_COMPANY) || 0;
+      return +(BOOK.companyCut(b) * pct).toFixed(2);
+    },
+    contractorLedger: function (fromDate, toDate) {
+      var rides = BOOK.all().filter(function (b) {
+        if (b.status !== "Completed") return false;
+        if (fromDate && (b.date || "") < fromDate) return false;
+        if (toDate && (b.date || "") > toDate) return false;
+        return true;
+      }).sort(function (a, b) { return (a.date || "") < (b.date || "") ? 1 : -1; });
+      function sum(list, fn) { return +(list.reduce(function (s, b) { return s + fn(b); }, 0)).toFixed(2); }
+      return {
+        rides: rides,
+        gross: sum(rides, function (b) { return b.fare || 0; }),
+        drivers: sum(rides, BOOK.driverCut),
+        company: sum(rides, BOOK.companyCut),
+        owed: sum(rides, BOOK.contractorCut)
+      };
+    },
     // completed rides for a driver: unbilled -> invoiced -> paid
     earnings: function (email) {
       email = norm(email);

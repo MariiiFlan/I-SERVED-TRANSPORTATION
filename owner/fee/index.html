@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Platform Fee — I Served Dispatch</title>
+<link rel="icon" href="../../favicon.ico" sizes="any">
+<link rel="icon" type="image/png" href="../../images/favicon-32.png">
+<link rel="apple-touch-icon" href="../../images/favicon-180.png">
+<link rel="stylesheet" href="../../assets/base.css">
+<style>body{background:oklch(0.975 0.006 250);}</style>
+</head>
+<body>
+<div class="console">
+  <div id="side"></div>
+  <main>
+    <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap;">
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <span class="kicker" style="letter-spacing:0.16em;font-size:11px;">Software &amp; maintenance</span>
+        <h2 style="margin:0;font:700 34px/1.05 'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:0.01em;">Platform fee</h2>
+        <span id="terms" style="font:500 14px/1.5 Figtree,sans-serif;color:oklch(0.52 0.015 250);"></span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <button class="chip" data-range="week">This week</button>
+        <button class="chip" data-range="month">This month</button>
+        <button class="chip" data-range="last">Last month</button>
+        <button class="chip on" data-range="all">All time</button>
+      </div>
+    </div>
+
+    <div class="grid4" style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;">
+      <div class="statcard"><span class="k">Rides completed</span><span class="v" id="stRides">0</span><span class="s" id="stPeriod"></span></div>
+      <div class="statcard"><span class="k">Gross fares</span><span class="v" id="stGross">$0</span><span class="s">Before anyone is paid</span></div>
+      <div class="statcard"><span class="k">Company share</span><span class="v" id="stCompany">$0</span><span class="s" id="stCompanySub"></span></div>
+      <div class="statcard" style="border-color:oklch(0.80 0.08 237);background:oklch(0.99 0.012 237);">
+        <span class="k" style="color:oklch(0.45 0.09 240);">Platform fee</span>
+        <span class="v" id="stFee" style="color:oklch(0.40 0.10 240);">$0</span>
+        <span class="s" id="stFeeSub"></span>
+      </div>
+    </div>
+
+    <div class="card" style="gap:14px;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+        <div style="display:flex;flex-direction:column;gap:3px;">
+          <span style="font:700 14px/1 Barlow,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.45 0.02 250);">Outstanding</span>
+          <span id="outstandingNote" style="font:400 13.5px/1.6 Figtree,sans-serif;color:oklch(0.55 0.015 250);"></span>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button class="btn" id="invoiceBtn" style="padding:12px 20px;font-size:14px;">Create invoice for this period</button>
+          <button class="btn2" id="historyBtn" style="padding:12px 18px;font-size:14px;">Fee history</button>
+        </div>
+      </div>
+    </div>
+
+    <div style="background:#fff;border:1px solid oklch(0.92 0.012 250);border-radius:14px;overflow:auto;">
+      <table class="tbl" style="min-width:760px;">
+        <thead><tr><th>Date</th><th>Ride</th><th>Passenger</th><th>Fare</th><th>Driver</th><th>Company</th><th>Fee</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <div id="countLine" style="font:400 13px/1 Figtree,sans-serif;color:oklch(0.55 0.015 250);"></div>
+  </main>
+</div>
+
+<!-- history -->
+<div id="histModal" style="display:none;position:fixed;inset:0;z-index:80;background:oklch(0.28 0.02 250 / 0.55);align-items:center;justify-content:center;padding:20px;">
+  <div style="background:#fff;border-radius:16px;max-width:560px;width:100%;max-height:88vh;overflow:auto;padding:26px;display:flex;flex-direction:column;gap:16px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;">
+      <span style="font:700 22px/1.2 Figtree,sans-serif;">Platform fee history</span>
+      <button class="btn2" id="histClose" style="padding:9px 14px;font-size:13px;">Close</button>
+    </div>
+    <div id="histList" style="display:flex;flex-direction:column;"></div>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+<script src="../../assets/config.js"></script>
+<script src="../../assets/app.js"></script>
+<script>
+ISV.root = "../../";
+ISV.ready(function(){
+var me = ISV.auth.require("owner", "/owner/fee/");
+if (!me) return;
+
+document.getElementById('side').innerHTML = ISV.sidebar("../../", "fee", "Dispatch console", [
+  { id:"dash", label:"Dashboard", href:"../dashboard/" },
+  { id:"sched", label:"Schedules", href:"../schedules/" },
+  { id:"pay", label:"Driver pay", href:"../pay/" },
+  { id:"fee", label:"Platform fee", href:"../fee/" },
+  { id:"team", label:"Team", href:"../team/" },
+  { id:"rep",  label:"Reports", href:"../reports/" }
+]);
+
+var CT = CONFIG.CONTRACTOR || {};
+var feePct = (CT.SHARE_OF_COMPANY || 0) * 100;
+var companyPct = Math.round((1 - (CONFIG.DRIVER_SHARE || 0.6)) * 100);
+var FEE_KEY = "platform-fee";
+var range = "all";
+
+document.getElementById('terms').textContent =
+  (CT.NAME || "Contractor") + " - " + feePct + "% of the company's " + companyPct + "% share on completed rides.";
+document.getElementById('stCompanySub').textContent = companyPct + "% after drivers";
+document.getElementById('stFeeSub').textContent = feePct + "% of the company share";
+
+function isoToday(){ return new Date().toISOString().slice(0,10); }
+function bounds(){
+  var d = new Date();
+  if (range === "week"){
+    var day = (d.getDay()+6)%7, mon = new Date(d); mon.setDate(d.getDate()-day);
+    var sun = new Date(mon); sun.setDate(mon.getDate()+6);
+    return [mon.toISOString().slice(0,10), sun.toISOString().slice(0,10), "This week"];
+  }
+  if (range === "month"){
+    var f = new Date(d.getFullYear(), d.getMonth(), 1), l = new Date(d.getFullYear(), d.getMonth()+1, 0);
+    return [f.toISOString().slice(0,10), l.toISOString().slice(0,10), f.toLocaleDateString('en-US',{month:'long',year:'numeric'})];
+  }
+  if (range === "last"){
+    var f2 = new Date(d.getFullYear(), d.getMonth()-1, 1), l2 = new Date(d.getFullYear(), d.getMonth(), 0);
+    return [f2.toISOString().slice(0,10), l2.toISOString().slice(0,10), f2.toLocaleDateString('en-US',{month:'long',year:'numeric'})];
+  }
+  return [null, null, "All time"];
+}
+
+function paidFees(){ return ISV.auth.payments(FEE_KEY); }
+
+function render(){
+  var b = bounds();
+  var led = ISV.book.contractorLedger(b[0], b[1]);
+
+  document.getElementById('stRides').textContent = led.rides.length;
+  document.getElementById('stPeriod').textContent = b[2];
+  document.getElementById('stGross').textContent = ISV.money(led.gross);
+  document.getElementById('stCompany').textContent = ISV.money(led.company);
+  document.getElementById('stFee').textContent = ISV.money(led.owed);
+
+  var paid = paidFees().reduce(function(s,p){ return s + (p.amount||0); }, 0);
+  var allTime = ISV.book.contractorLedger(null, null);
+  var outstanding = +(allTime.owed - paid).toFixed(2);
+  document.getElementById('outstandingNote').innerHTML =
+    'All time earned <b>' + ISV.money(allTime.owed) + '</b> · paid <b>' + ISV.money(paid) + '</b> · ' +
+    '<b style="color:' + (outstanding > 0 ? 'oklch(0.45 0.12 45)' : 'oklch(0.40 0.10 160)') + ';">' +
+    (outstanding > 0 ? ISV.money(outstanding) + ' outstanding' : 'all settled up') + '</b>';
+
+  document.getElementById('rows').innerHTML = led.rides.length ? led.rides.map(function(r){
+    return '<tr class="click" onclick="location.href=\'../booking/?id='+r.id+'\'">'+
+      '<td style="white-space:nowrap;">'+ISV.fmtDate(r.date)+'</td>'+
+      '<td style="font:600 12.5px/1.4 Figtree,sans-serif;color:oklch(0.45 0.06 240);white-space:nowrap;">'+r.id+(r.leg?'<div style="font:700 11px/1.5 Figtree,sans-serif;color:oklch(0.45 0.09 240);">'+ISV.esc(r.leg)+' Leg</div>':'')+'</td>'+
+      '<td>'+ISV.esc(r.name)+'</td>'+
+      '<td style="white-space:nowrap;">'+ISV.money(r.fare)+'</td>'+
+      '<td style="white-space:nowrap;color:oklch(0.55 0.015 250);">'+ISV.money(ISV.book.driverCut(r))+'</td>'+
+      '<td style="white-space:nowrap;">'+ISV.money(ISV.book.companyCut(r))+'</td>'+
+      '<td style="font:700 13.5px/1.4 Figtree,sans-serif;white-space:nowrap;color:oklch(0.40 0.10 240);">'+ISV.money(ISV.book.contractorCut(r))+'</td>'+
+    '</tr>';
+  }).join('') : '<tr><td colspan="7" style="text-align:center;padding:34px;color:oklch(0.55 0.015 250);">No completed rides in this period.</td></tr>';
+
+  document.getElementById('countLine').textContent = led.rides.length + " completed ride" + (led.rides.length===1?"":"s") + " in " + b[2].toLowerCase();
+}
+
+document.querySelectorAll('[data-range]').forEach(function(el){
+  el.onclick = function(){
+    range = this.getAttribute('data-range');
+    document.querySelectorAll('[data-range]').forEach(function(x){ x.classList.remove('on'); });
+    this.classList.add('on');
+    render();
+  };
+});
+
+document.getElementById('invoiceBtn').onclick = function(){
+  var b = bounds();
+  var led = ISV.book.contractorLedger(b[0], b[1]);
+  if (!led.rides.length){ alert("No completed rides in this period."); return; }
+  var btn = this; btn.disabled = true; btn.textContent = "Building...";
+  var rec = {
+    id: "FEE-" + Math.floor(100000 + Math.random()*899999),
+    t: Date.now(),
+    date: isoToday(),
+    amount: led.owed,
+    rideIds: led.rides.map(function(r){ return r.id; }),
+    rideCount: led.rides.length,
+    period: b[2],
+    by: me.name,
+    status: "sent"
+  };
+  Promise.resolve(ISV.auth.addPayment(FEE_KEY, rec)).then(function(){
+    location.href = "../invoice/?driver=" + encodeURIComponent(FEE_KEY) + "&payment=" + encodeURIComponent(rec.id) + "&fee=1";
+  }).catch(function(e){
+    alert("Couldn't save: " + e);
+    btn.disabled = false; btn.textContent = "Create invoice for this period";
+  });
+};
+
+document.getElementById('historyBtn').onclick = function(){
+  var list = paidFees();
+  document.getElementById('histList').innerHTML = list.length ? list.map(function(p){
+    var isPaid = p.status === "paid";
+    return '<div style="display:flex;flex-direction:column;gap:10px;padding:15px 0;border-bottom:1px solid oklch(0.95 0.008 250);">'+
+      '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;">'+
+        '<div style="display:flex;flex-direction:column;gap:3px;">'+
+          '<div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;">'+
+            '<span style="font:600 15px/1.3 Figtree,sans-serif;">'+ISV.fmtDate(p.date)+(p.period?' · '+ISV.esc(p.period):'')+'</span>'+
+            '<span style="padding:4px 10px;border-radius:999px;font:700 10.5px/1 Figtree,sans-serif;text-transform:uppercase;letter-spacing:0.07em;'+
+              (isPaid ? 'background:oklch(0.94 0.05 160);color:oklch(0.38 0.10 160);">Paid' : 'background:oklch(0.96 0.03 85);color:oklch(0.48 0.10 72);">Outstanding')+'</span>'+
+          '</div>'+
+          '<span style="font:400 13px/1.5 Figtree,sans-serif;color:oklch(0.55 0.015 250);">'+p.rideCount+' ride'+(p.rideCount===1?'':'s')+' · '+p.id+'</span>'+
+        '</div>'+
+        '<span style="font:700 18px/1.3 Figtree,sans-serif;white-space:nowrap;">'+ISV.money(p.amount)+'</span>'+
+      '</div>'+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;">'+
+        '<a class="chip" style="text-decoration:none;" href="../invoice/?driver='+encodeURIComponent(FEE_KEY)+'&payment='+encodeURIComponent(p.id)+'&fee=1">Open invoice</a>'+
+        (isPaid ? '<button class="chip" data-unpaid="'+p.id+'">Undo paid</button>'
+                : '<button class="chip" data-paid="'+p.id+'" style="background:oklch(0.32 0.03 248);border-color:oklch(0.32 0.03 248);color:#fff;">Mark as paid</button>')+
+      '</div></div>';
+  }).join('') : '<span style="font:400 15px/1.6 Figtree,sans-serif;color:oklch(0.58 0.015 250);">No fee invoices yet.</span>';
+
+  document.querySelectorAll('[data-paid]').forEach(function(el){
+    el.onclick = function(){
+      var id = this.getAttribute('data-paid');
+      var p = paidFees().find(function(x){ return x.id === id; });
+      if (!p || !confirm("Mark " + ISV.money(p.amount) + " as paid?")) return;
+      ISV.auth.updatePayment(FEE_KEY, id, { status:"paid", confirmedOn: isoToday() });
+      document.getElementById('historyBtn').click(); render();
+    };
+  });
+  document.querySelectorAll('[data-unpaid]').forEach(function(el){
+    el.onclick = function(){
+      var id = this.getAttribute('data-unpaid');
+      ISV.auth.updatePayment(FEE_KEY, id, { status:"sent", confirmedOn: null });
+      document.getElementById('historyBtn').click(); render();
+    };
+  });
+  document.getElementById('histModal').style.display = "flex";
+};
+document.getElementById('histClose').onclick = function(){ document.getElementById('histModal').style.display = "none"; };
+
+render();
+ISV.onChange(render);
+});
+</script>
+</body>
+</html>

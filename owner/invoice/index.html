@@ -22,7 +22,7 @@
 
 <div style="padding:26px 18px 60px;">
   <div class="bar">
-    <a class="btn2" href="../pay/" style="display:inline-block;padding:11px 16px;font-size:14px;">&larr; Driver pay</a>
+    <a class="btn2" id="backLink" href="../pay/" style="display:inline-block;padding:11px 16px;font-size:14px;">&larr; Back</a>
     <button class="btn" id="printBtn" style="padding:12px 20px;font-size:14px;">Print / Save as PDF</button>
     <button class="btn2" id="emailBtn" style="padding:12px 18px;font-size:14px;">Email to driver</button>
     <button class="btn2" id="textBtn" style="padding:12px 18px;font-size:14px;">Text the driver</button>
@@ -47,7 +47,11 @@ var qs = new URLSearchParams(location.search);
 var email = (qs.get('driver') || "").toLowerCase();
 var payId = qs.get('payment');
 
-var driver = ISV.auth.drivers().find(function(d){ return d.email === email; }) || { name: email, email: email };
+var isFee = qs.get('fee') === '1';
+var CT = CONFIG.CONTRACTOR || {};
+var driver = isFee
+  ? { name: CT.NAME || "Contractor", email: CT.EMAIL || "", phone: "" }
+  : (ISV.auth.drivers().find(function(d){ return d.email === email; }) || { name: email, email: email });
 var rec = ISV.auth.payments(email).find(function(p){ return p.id === payId; });
 
 if (!rec){
@@ -98,7 +102,7 @@ document.getElementById('sheet').innerHTML =
       (driver.phone ? row('Phone', ISV.esc(driver.phone)) : '')+
     '</div>'+
     '<div style="display:flex;flex-direction:column;gap:12px;">'+
-      row('For', 'Completed rides')+
+      row('For', isFee ? ('Platform fee' + (rec.period ? ' - ' + ISV.esc(rec.period) : '')) : 'Completed rides')+
       row('Rides', rides.length + (rides.length===1?' ride':' rides'))+
       (rec.note ? row('Note', ISV.esc(rec.note)) : '')+
     '</div>'+
@@ -116,7 +120,7 @@ document.getElementById('sheet').innerHTML =
         '<td style="padding:11px 8px;font:500 13px/1.5 Figtree,sans-serif;border-bottom:1px solid oklch(0.95 0.008 250);">'+ISV.esc(b.name)+(b.leg?'<div style="font:700 11px/1.5 Figtree,sans-serif;color:oklch(0.45 0.09 240);">'+ISV.esc(b.leg)+' Leg</div>':'')+'</td>'+
         '<td style="padding:11px 8px;font:400 12.5px/1.5 Figtree,sans-serif;color:oklch(0.50 0.015 250);border-bottom:1px solid oklch(0.95 0.008 250);">'+ISV.esc(b.pickup)+' &rarr; '+ISV.esc(b.dropoff)+'</td>'+
         '<td style="padding:11px 8px;font:400 12px/1.5 Figtree,sans-serif;color:oklch(0.55 0.015 250);border-bottom:1px solid oklch(0.95 0.008 250);white-space:nowrap;">'+b.id+'</td>'+
-        '<td style="padding:11px 8px;font:700 13.5px/1.5 Figtree,sans-serif;text-align:right;border-bottom:1px solid oklch(0.95 0.008 250);white-space:nowrap;">'+ISV.money(ISV.book.driverCut(b))+'</td>'+
+        '<td style="padding:11px 8px;font:700 13.5px/1.5 Figtree,sans-serif;text-align:right;border-bottom:1px solid oklch(0.95 0.008 250);white-space:nowrap;">'+ISV.money(isFee ? ISV.book.contractorCut(b) : ISV.book.driverCut(b))+'</td>'+
       '</tr>';
     }).join('') : '<tr><td colspan="5" style="padding:18px 8px;font:400 13px/1.6 Figtree,sans-serif;color:oklch(0.55 0.015 250);">Ride details are no longer available, but the amount below is what was invoiced.</td></tr>')+
     '</tbody></table>'+
@@ -142,16 +146,18 @@ function ridesNow(){ return (rec.rideIds || []).map(function(id){ return ISV.boo
 function plainText(){
   var rides = ridesNow();
   return [
-    CONFIG.COMPANY + " - driver pay invoice " + rec.id,
+    (isFee ? CONFIG.COMPANY + " - platform fee invoice " : CONFIG.COMPANY + " - driver pay invoice ") + rec.id,
     "For: " + driver.name,
     "Date: " + ISV.fmtDate(rec.date),
     rides.length + " completed ride" + (rides.length===1?"":"s"),
     ""
   ].concat(rides.map(function(b){
-    return ISV.fmtDate(b.date) + "  " + b.name + (b.leg ? " (" + b.leg + " Leg)" : "") + "  " + b.id + "  " + ISV.money(ISV.book.driverCut(b));
+    return ISV.fmtDate(b.date) + "  " + b.name + (b.leg ? " (" + b.leg + " Leg)" : "") + "  " + b.id + "  " + ISV.money(isFee ? ISV.book.contractorCut(b) : ISV.book.driverCut(b));
   })).concat(["", "TOTAL: " + ISV.money(rec.amount)]).join("\n");
 }
 
+var bk = document.getElementById('backLink');
+if (bk){ bk.href = isFee ? "../fee/" : "../pay/"; bk.textContent = isFee ? "\u2190 Platform fee" : "\u2190 Driver pay"; }
 document.getElementById('printBtn').onclick = function(){ window.print(); };
 
 document.getElementById('emailBtn').onclick = function(){
