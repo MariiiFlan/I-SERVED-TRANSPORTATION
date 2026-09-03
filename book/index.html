@@ -119,6 +119,7 @@
             <span style="font:600 15px/1.4 Figtree,sans-serif;color:oklch(0.30 0.02 250);">Estimated total</span>
             <span id="totalSmall" style="font:700 17px/1.4 Figtree,sans-serif;color:oklch(0.30 0.02 250);"></span>
           </div>
+          <div id="ownerPrice" style="display:none;"></div>
           <button class="btn" id="submit" style="margin-top:6px;">Continue to checkout</button>
           <span id="formErr" class="err"></span>
           <span style="font:400 12px/1.5 Figtree,sans-serif;color:oklch(0.58 0.015 250);text-wrap:pretty;">Estimate only - final fare is confirmed by dispatch before pickup. Nothing is charged today.</span>
@@ -148,6 +149,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
 <script src="../assets/config.js"></script>
 <script src="../assets/app.js"></script>
+<script src="../assets/priceeditor.js"></script>
 <script>
 ISV.root = "../";
 ISV.ready(function(){
@@ -176,6 +178,22 @@ try {
 } catch(e){}
 
 var me = ISV.auth.me();
+var PRICE = null;
+if (me && me.role === "owner"){
+  var pw = document.getElementById('ownerPrice');
+  pw.style.display = "block";
+  PRICE = ISVPrice.mount(pw, {
+    title: "Dispatch price",
+    hint: "You are signed in as the owner. Type the real price here - the estimate above is only a starting point.",
+    fare: 0,
+    driverPay: null,
+    onChange: function(v){
+      document.getElementById('totalBig').textContent = ISV.money(v.fare);
+      document.getElementById('totalSmall').textContent = ISV.money(v.fare);
+      document.getElementById('mobileTotal').textContent = ISV.money(v.fare);
+    }
+  });
+}
 document.getElementById('acctHint').innerHTML = me
   ? 'This ride will be saved to your account (<b>' + ISV.esc(me.email) + '</b>) so you can track it under <a href="../my-rides/">My rides</a>.'
   : 'Have an account? <a href="../account/?next=/book/">Sign in</a> and this booking saves to your ride history automatically, or <a href="../account/?new=1">create one</a>. Not required to book.';
@@ -225,9 +243,11 @@ function calc(){
     document.getElementById('milesLabel').textContent = S.miles + " mi one way";
   }
   var f = ISV.fare({ vehicle:S.vehicle, tripType:S.tripType, addOns:S.addOns, miles: ISV.totalMilesFor(S.miles, S.tripType) });
-  document.getElementById('totalBig').textContent = ISV.money(f.total);
-  document.getElementById('totalSmall').textContent = ISV.money(f.total);
-  document.getElementById('mobileTotal').textContent = ISV.money(f.total);
+  if (PRICE) PRICE.suggest(f.total);
+  var shown = (PRICE && PRICE.isTouched()) ? PRICE.read().fare : f.total;
+  document.getElementById('totalBig').textContent = ISV.money(shown);
+  document.getElementById('totalSmall').textContent = ISV.money(shown);
+  document.getElementById('mobileTotal').textContent = ISV.money(shown);
   document.getElementById('estSummary').textContent = f.miles + " mi · " + ISV.vehicleName(S.vehicle) + (S.tripType==="round" ? " · round trip" : " · one way");
   document.getElementById('breakdown').innerHTML = f.clientRows.map(function(r){
     return '<div style="display:flex;align-items:baseline;justify-content:space-between;gap:14px;">'+
@@ -258,13 +278,20 @@ document.getElementById('submit').onclick = function(){
     notes:document.getElementById('notes').value.trim(),
     miles:f.miles, fare:+f.total.toFixed(2)
   };
+  if (PRICE){
+    var set = PRICE.read();
+    draft.fare = set.fare;
+    draft.driverPay = set.driverPay;
+    draft.priceSetBy = me.name;
+  }
   if (S.coords.pickup) draft.pickupCoords = S.coords.pickup;
   if (S.coords.dropoff) draft.dropoffCoords = S.coords.dropoff;
   if (S.autoMiles != null) draft.routedMiles = true;
   if (me && me.role === "owner"){ // dispatch books directly - no checkout gate
     var btn = this; btn.disabled = true; btn.textContent = "Saving…";
     draft.createdByOwner = true;
-    draft.log = [{ t: Date.now(), text: "Created by dispatch (" + me.name + ") - estimate " + ISV.money(draft.fare) }];
+    draft.log = [{ t: Date.now(), text: "Created by dispatch (" + me.name + ") - price set to " + ISV.money(draft.fare) +
+      (draft.driverPay == null ? ", driver on the standard share" : ", driver pay set to " + ISV.money(draft.driverPay)) }];
     ISV.book.addTripAsync(draft).then(function(list){
       location.href = '../confirm/?id=' + list[0].id;
     }).catch(function(e){

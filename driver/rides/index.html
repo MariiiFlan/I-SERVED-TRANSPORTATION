@@ -20,10 +20,11 @@
       <h2 style="margin:0;font:700 34px/1.05 'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:0.01em;">My rides</h2>
     </div>
 
-    <div class="grid3" style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;">
+    <div class="grid4" style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;">
       <div class="statcard"><span class="k">Next pickup</span><span class="v" id="stNext">-</span><span class="s" id="stNextSub"></span></div>
       <div class="statcard"><span class="k">Rides today</span><span class="v" id="stCount">0</span><span class="s" id="stCountSub"></span></div>
       <div class="statcard"><span class="k">Miles today</span><span class="v" id="stMiles">0</span><span class="s">Round trips included</span></div>
+      <div class="statcard"><span class="k">Pay today</span><span class="v" id="stPay">$0.00</span><span class="s">Set by dispatch</span></div>
     </div>
 
     <div id="chips" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
@@ -117,6 +118,7 @@ function stats(){
   sub.style.color = needs ? "oklch(0.50 0.18 27)" : "";
   sub.style.fontWeight = needs ? "700" : "";
   document.getElementById('stMiles').textContent = todays.reduce(function(s,b){ return s + (b.miles||0); }, 0);
+  document.getElementById('stPay').textContent = ISV.money(todays.reduce(function(s,b){ return s + ISV.book.driverCut(b); }, 0));
 }
 
 function statusLabel(b){
@@ -140,7 +142,11 @@ function list(){
         '<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">'+
           '<span style="font:700 22px/1 \'Barlow Condensed\',sans-serif;letter-spacing:0.02em;">'+(view!=="today" ? ISV.fmtDate(b.date)+" · " : "")+ISV.fmtTime(b.time)+'</span>'+
           (b.status!=="Completed" ? '<span style="font:600 12px/1 Figtree,sans-serif;color:oklch(0.55 0.015 250);">'+leaveBy(b.time)+'</span>' : '')+
-        '</div>'+statusLabel(b)+'</div>'+
+        '</div>'+
+        '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">'+
+          '<span style="font:700 20px/1 \'Barlow Condensed\',sans-serif;letter-spacing:0.02em;color:oklch(0.38 0.10 160);">'+ISV.money(ISV.book.driverCut(b))+'</span>'+
+          statusLabel(b)+
+        '</div></div>'+
       '<div style="display:flex;flex-direction:column;gap:4px;">'+
         '<span style="font:600 16px/1.3 Figtree,sans-serif;">'+ISV.esc(b.name)+'</span>'+
         '<span style="font:400 14.5px/1.5 Figtree,sans-serif;color:oklch(0.40 0.015 250);">'+ISV.mapLink(b.pickup)+' <span style="color:oklch(0.60 0.015 250);">→</span> '+ISV.mapLink(b.dropoff)+'</span>'+

@@ -542,20 +542,18 @@
       }
       var group = "GRP-" + Math.floor(100000 + Math.random() * 899999);
       var oneWayMiles = Math.round((Number(b.miles || 0) / 2) * 10) / 10;
-      function legFare(v) {
-        var f = fare({ vehicle: b.vehicle, tripType: "oneway", miles: oneWayMiles, addOns: b.addOns });
-        return +f.total.toFixed(2);
-      }
+      var fareSplit = splitTwo(b.fare);
+      var paySplit = hasSetPay(b) ? splitTwo(b.driverPay) : [null, null];
       var legA = Object.assign({}, b, {
         tripType: "oneway", leg: "A", groupId: group,
-        miles: oneWayMiles, fare: legFare(),
+        miles: oneWayMiles, fare: fareSplit[0], driverPay: paySplit[0],
         notes: b.notes || ""
       });
       var legB = Object.assign({}, b, {
         tripType: "oneway", leg: "B", groupId: group,
         pickup: b.dropoff, dropoff: b.pickup,
         pickupCoords: b.dropoffCoords, dropoffCoords: b.pickupCoords,
-        miles: oneWayMiles, fare: legFare(),
+        miles: oneWayMiles, fare: fareSplit[1], driverPay: paySplit[1],
         notes: b.notes || ""
       });
       return BOOK.addAsync(legA).then(function (a) {
@@ -635,8 +633,13 @@
           "Assigned to " + (driverName || email) + " by " + (byName || "dispatch"));
       });
     },
-    driverCut: function (b) { return +(((b.fare || 0) * (C.DRIVER_SHARE || 0.6))).toFixed(2); },
-    companyCut: function (b) { return +(((b.fare || 0) * (1 - (C.DRIVER_SHARE || 0.6)))).toFixed(2); },
+    autoDriverCut: function (b) { return +(((b.fare || 0) * (C.DRIVER_SHARE || 0.6))).toFixed(2); },
+    payIsSet: function (b) { return hasSetPay(b); },
+    driverCut: function (b) {
+      if (hasSetPay(b)) return +Number(b.driverPay).toFixed(2);
+      return BOOK.autoDriverCut(b);
+    },
+    companyCut: function (b) { return +(((b.fare || 0) - BOOK.driverCut(b))).toFixed(2); },
     contractorCut: function (b) {
       var pct = (C.CONTRACTOR && C.CONTRACTOR.SHARE_OF_COMPANY) || 0;
       return +(BOOK.companyCut(b) * pct).toFixed(2);
@@ -808,6 +811,17 @@
       BOOK.update(id, { clientPaidOn: null, clientPaidMethod: null },
         "Client payment marked unpaid" + (byName ? " by " + byName : ""));
     },
+    setPrice: function (id, fareAmount, payAmount, byName) {
+      var patch = { fare: +Number(fareAmount || 0).toFixed(2) };
+      patch.driverPay = hasSetPay({ driverPay: payAmount }) ? +Number(payAmount).toFixed(2) : null;
+      var text = "Fare set to " + money(patch.fare) +
+        (patch.driverPay === null ? ", driver pay back to the standard share" : ", driver pay set to " + money(patch.driverPay));
+      BOOK.update(id, patch, text + (byName ? " by " + byName : ""));
+    },
+    setWait: function (id, minutes, byName) {
+      var m = Math.max(0, Math.round(Number(minutes) || 0));
+      BOOK.update(id, { waitMinutes: m }, "Wait time logged: " + waitLabel(m) + (byName ? " by " + byName : ""));
+    },
     forDriver: function (email) {
       email = norm(email);
       return BOOK.all().filter(function (b) { return b.driverEmail === email && b.status !== "Cancelled" && b.status !== "Pending"; });
@@ -821,6 +835,23 @@
 
   /* ---------------- fare ---------------- */
   function money(n) { return "$" + Number(n || 0).toFixed(2); }
+  function hasSetPay(b) {
+    if (!b) return false;
+    var v = b.driverPay;
+    return v !== null && v !== undefined && v !== "" && !isNaN(Number(v));
+  }
+  function splitTwo(n) {
+    var total = +Number(n || 0).toFixed(2);
+    var first = +(Math.round(total * 50) / 100).toFixed(2);
+    return [first, +(total - first).toFixed(2)];
+  }
+  function waitLabel(minutes) {
+    var m = Math.max(0, Math.round(Number(minutes) || 0));
+    if (!m) return "none";
+    if (m < 60) return m + " min";
+    var h = Math.floor(m / 60), rem = m % 60;
+    return h + (h === 1 ? " hr" : " hrs") + (rem ? " " + rem + " min" : "");
+  }
   // s.miles is ALWAYS the TOTAL miles for the whole trip (both legs if round).
   // Legs only multiply the base fare. Every page passes total miles.
   function fare(s) {
@@ -1033,6 +1064,7 @@
     money: money, fare: fare, totalMilesFor: totalMilesFor, vehicleName: vehicleName, vehicleShort: vehicleShort,
     logo: logo, header: header, footer: footer, sidebar: sidebar, pill: pill, avatar: avatar,
     fmtDate: fmtDate, fmtTime: fmtTime, esc: esc, tripLine: tripLine, mapsUrl: mapsUrl, mapLink: mapLink,
+    waitLabel: waitLabel,
     legLabel: legLabel, legDescription: legDescription, LEG_LETTERS: LEG_LETTERS
   };
 })();

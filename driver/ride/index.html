@@ -59,7 +59,7 @@ function render(){
       '<h2 style="margin:0;font:700 30px/1.05 \'Barlow Condensed\',sans-serif;text-transform:uppercase;letter-spacing:0.01em;">'+ISV.fmtDate(b.date)+' · '+ISV.fmtTime(b.time)+'</h2>'+
       (b.status === "Assigned" ? '<span style="padding:5px 11px;border-radius:999px;background:oklch(0.96 0.03 85);font:600 12px/1 Figtree,sans-serif;color:oklch(0.50 0.10 75);">Needs accepting</span>' : ISV.pill(b.status))+
     '</div>'+
-    '<span style="font:400 14px/1.5 Figtree,sans-serif;color:oklch(0.55 0.015 250);">Ride '+b.id+'</span>'+
+    '<span style="font:400 14px/1.5 Figtree,sans-serif;color:oklch(0.55 0.015 250);">Ride '+b.id+' &nbsp;·&nbsp; your pay <b style="font:700 16px/1 Figtree,sans-serif;color:oklch(0.38 0.10 160);">'+ISV.money(ISV.book.driverCut(b))+'</b></span>'+
   '</div>'+
 
   '<div class="booking-grid" style="display:grid;grid-template-columns:1.1fr 0.9fr;gap:20px;align-items:start;">'+
@@ -83,6 +83,8 @@ function render(){
         '<div style="padding:8px 24px 16px;">'+
           [["Pickup", ISV.mapLink(b.pickup) + ' <span style="font:400 13px;color:oklch(0.55 0.015 250);">- arrive 15 min early</span>', true], ["Drop-off", ISV.mapLink(b.dropoff), true], ["Leg", ISV.legDescription(b) || "Single trip"], ["Service", ISV.serviceLabel(b.service) || ISV.vehicleShort(b.vehicle)], ["Vehicle type", ISV.vehicleName(b.vehicle)],
            ["Trip type", b.tripType==="round"?"Round trip":"One way"], ["Distance", b.miles+" mi total"],
+           ["Your pay", ISV.money(ISV.book.driverCut(b))],
+           ["Wait time logged", b.waitMinutes == null ? "Not logged yet" : ISV.waitLabel(b.waitMinutes)],
            ["Wait at appointment", (b.addOns&&b.addOns.wait) ? "Yes - driver waits" : "No"],
            ["Notes from dispatch", b.notes || "None"]]
           .map(function(r){ return '<div style="display:grid;grid-template-columns:170px 1fr;gap:16px;padding:12px 0;border-bottom:1px solid oklch(0.96 0.006 250);">'+
@@ -106,7 +108,11 @@ function render(){
                  : nextUp ? 'background:oklch(0.62 0.115 237);color:#fff;'
                  : 'background:oklch(0.96 0.006 250);color:oklch(0.65 0.012 250);')+'">'+
                 (done ? '✓ ' : '')+BTN[s]+'</button>';
-            }).join('')+'</div>')+
+            }).join('')+'</div>'+
+            (idx === SEQ.length-2 ? '<span style="font:400 12.5px/1.6 Figtree,sans-serif;color:oklch(0.58 0.015 250);">Tapping Completed asks how long you waited on this trip.</span>' : ''))+
+        (!cancelled && b.status === "Completed"
+          ? '<button class="btn2" id="logWait" style="padding:13px;font-size:14px;">'+(b.waitMinutes == null ? 'Add your wait time' : 'Update wait time - '+ISV.waitLabel(b.waitMinutes))+'</button>'
+          : '')+
       '</div>'+
       (!cancelled && b.status !== "Completed" ?
       '<div class="card" style="gap:10px;">'+
@@ -120,12 +126,33 @@ function render(){
   document.querySelectorAll('[data-stage]').forEach(function(el){
     el.onclick = function(){
       var s = this.getAttribute('data-stage');
-      if (SEQ.indexOf(s) !== stageIndex(ISV.book.byId(id).status)+1) return;
-      ISV.book.update(id, { status: s }, me.name + " " + LOGTXT[s]);
+      var live = ISV.book.byId(id);
+      if (SEQ.indexOf(s) !== stageIndex(live.status)+1) return;
+      var patch = { status: s };
+      var extra = "";
+      if (s === "Completed"){
+        var asked = prompt("How many minutes did you wait on this trip?\n\nPut 0 if you didn't wait. Leave it empty to skip.",
+          live.waitMinutes != null ? String(live.waitMinutes) : "0");
+        if (asked === null) return;
+        if (String(asked).trim() !== ""){
+          var mins = Math.max(0, Math.round(parseFloat(asked) || 0));
+          patch.waitMinutes = mins;
+          extra = " - waited " + ISV.waitLabel(mins);
+        }
+      }
+      ISV.book.update(id, patch, me.name + " " + LOGTXT[s] + extra);
       if (s === "Accepted"){ var ab = ISV.book.byId(id); if (ab) ISV.notifyAccepted(ab, me.name); }
       render();
     };
   });
+  var lw = document.getElementById('logWait');
+  if (lw) lw.onclick = function(){
+    var cur = ISV.book.byId(id) || {};
+    var asked = prompt("How many minutes did you wait on this trip?", cur.waitMinutes != null ? String(cur.waitMinutes) : "0");
+    if (asked === null || String(asked).trim() === "") return;
+    ISV.book.setWait(id, asked, me.name);
+    render();
+  };
   var dec = document.getElementById('decline');
   if (dec) dec.onclick = function(){
     var reason = prompt("What should dispatch know? (car trouble, double-booked, too far, etc.)");

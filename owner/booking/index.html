@@ -22,6 +22,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
 <script src="../../assets/config.js"></script>
 <script src="../../assets/app.js"></script>
+<script src="../../assets/priceeditor.js"></script>
 <script>
 ISV.root = "../../";
 ISV.ready(function(){
@@ -80,8 +81,11 @@ function editForm(b){
     '<textarea id="eNotes" class="inp" rows="2" style="resize:vertical;">'+ISV.esc(b.notes||"")+'</textarea></div>'+
     '<div style="display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;">'+
       inp('eFare','Fare ($)', b.fare, 'number', 'max-width:160px;')+
+      inp('eDriverPay','Driver pay ($)', (b.driverPay == null ? "" : b.driverPay), 'number', 'max-width:170px;')+
+      inp('eWait','Wait time (min)', (b.waitMinutes == null ? "" : b.waitMinutes), 'number', 'max-width:170px;')+
       '<button class="btn2" id="eRecalc" style="padding:13px 18px;font-size:14px;">Recalculate from details</button>'+
     '</div>'+
+    '<span style="font:400 12.5px/1.6 Figtree,sans-serif;color:oklch(0.58 0.015 250);">Leave driver pay blank to fall back to the standard '+Math.round((CONFIG.DRIVER_SHARE||0.6)*100)+'% share. Anything you type is what the driver sees.</span>'+
     '<div style="display:flex;gap:12px;">'+
       '<button class="btn" id="eSave" style="padding:14px 26px;font-size:15px;">Save changes</button>'+
       '<button class="btn2" id="eCancel" style="padding:14px 22px;font-size:15px;">Cancel</button>'+
@@ -98,6 +102,8 @@ function readEditForm(){
     date: v('eDate'), time: v('eTime'),
     tripType: trip, vehicle: v('eVehicle'), service: v('eService'), pax: v('ePax'),
     miles: parseFloat(v('eMiles')) || 0,
+    driverPay: (String(v('eDriverPay')).trim() === "" ? null : +(parseFloat(v('eDriverPay')) || 0).toFixed(2)),
+    waitMinutes: (String(v('eWait')).trim() === "" ? null : Math.max(0, Math.round(parseFloat(v('eWait')) || 0))),
     addOns: { wait: document.getElementById('eAdd_wait').checked, assist: document.getElementById('eAdd_assist').checked, afterHours: document.getElementById('eAdd_afterHours').checked },
     notes: v('eNotes').trim(),
     fare: parseFloat(v('eFare')) || 0
@@ -136,7 +142,9 @@ function render(){
         '<div style="padding:8px 24px 16px;">'+
           [["Leg", ISV.legDescription(b) || "Single trip"], ["Pickup", ISV.mapLink(b.pickup), true], ["Destination", ISV.mapLink(b.dropoff), true], ["Date", ISV.fmtDate(b.date)+", "+(b.date||"").slice(0,4)], ["Appointment time", ISV.fmtTime(b.time)],
            ["Trip type", (b.tripType==="round"?"Round trip":"One way")+" · "+b.miles+" mi total"], ["Vehicle", ISV.vehicleName(b.vehicle)],
-           ["Service", ISV.serviceLabel(b.service) || "Not specified"], ["Payor", b.payor || "Private pay"]]
+           ["Service", ISV.serviceLabel(b.service) || "Not specified"], ["Payor", b.payor || "Private pay"],
+           ["Wait time logged", b.waitMinutes == null ? "Not logged yet" : ISV.waitLabel(b.waitMinutes)],
+           ["Driver pay", ISV.money(ISV.book.driverCut(b)) + (ISV.book.payIsSet(b) ? " - set by dispatch" : " - standard share")]]
           .map(function(r){ return '<div style="display:grid;grid-template-columns:170px 1fr;gap:16px;padding:12px 0;border-bottom:1px solid oklch(0.96 0.006 250);">'+
             '<span style="font:500 14px/1.5 Figtree,sans-serif;color:oklch(0.56 0.015 250);">'+r[0]+'</span>'+
             '<span style="font:600 15px/1.5 Figtree,sans-serif;color:oklch(0.30 0.02 250);">'+(r[2] ? r[1] : ISV.esc(r[1]))+'</span></div>'; }).join('')+
@@ -231,6 +239,8 @@ function render(){
             '<span style="font:400 14px/1.4 Figtree,sans-serif;color:oklch(0.52 0.015 250);">'+r.label+'</span>'+
             '<span style="font:600 14px/1.4 Figtree,sans-serif;color:oklch(0.32 0.02 250);">'+r.amount+'</span></div>'; }).join('')+
           '<div style="height:1px;background:oklch(0.93 0.01 250);"></div>'+
+          '<div id="priceEdit"></div>'+
+          '<div style="height:1px;background:oklch(0.93 0.01 250);"></div>'+
           (function(){
             var state = ISV.book.chargeState(b);
             if (state === "paid"){
@@ -257,6 +267,19 @@ function render(){
         '</div></div>'+
     '</div>'+
   '</div>';
+
+  var pe = document.getElementById('priceEdit');
+  if (pe && window.ISVPrice) ISVPrice.mount(pe, {
+    title: "Price for this ride",
+    hint: "Type what the customer pays and what the driver gets. The driver sees your number as soon as you save.",
+    fare: b.fare,
+    driverPay: b.driverPay,
+    showSave: true,
+    onSave: function(v){
+      ISV.book.setPrice(id, v.fare, v.driverPay, me.name);
+      setTimeout(render, 400);
+    }
+  });
 
   var ap = document.getElementById('approveRide');
   if (ap) ap.onclick = function(){ ISV.book.approve(id, me.name); render(); };
@@ -336,9 +359,13 @@ function render(){
   if (ro) ro.onclick = function(){ ISV.book.update(id, { status: b.driverEmail ? "Assigned" : "New" }, "Reopened by dispatch"); render(); };
 }
 
+function priceBusy(){
+  var pe = document.getElementById('priceEdit');
+  return !!(pe && document.activeElement && pe.contains(document.activeElement));
+}
 render();
-ISV.onChange(function(){ if (!EDITING) render(); });
-setInterval(function(){ if (!EDITING) render(); }, 4000);
+ISV.onChange(function(){ if (!EDITING && !priceBusy()) render(); });
+setInterval(function(){ if (!EDITING && !priceBusy()) render(); }, 4000);
 }
 
 });
